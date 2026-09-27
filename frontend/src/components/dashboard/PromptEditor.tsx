@@ -1,6 +1,32 @@
-import { AlertCircle, Archive, ArchiveRestore, CheckCircle2, Loader2, MoreHorizontal, RefreshCw, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  Archive,
+  ArchiveRestore,
+  Check,
+  CheckCircle2,
+  Clipboard,
+  FileText,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { PromptSystem, VariableDefinition, VariableValidationResponse } from "@/services";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  composerService,
+  type PromptSystem,
+  type VariableDefinition,
+  type VariableValidationResponse,
+} from "@/services";
 import {
   ExamplesTab,
   InstructionsTab,
@@ -89,6 +115,34 @@ export function PromptEditor({
   onValidateVariables,
   onNavigateToModules,
 }: PromptEditorProps) {
+  const [composing, setComposing] = useState(false);
+  const [composedPrompt, setComposedPrompt] = useState<string | null>(null);
+  const [composeError, setComposeError] = useState<string | null>(null);
+  const [composeModalOpen, setComposeModalOpen] = useState(false);
+  const [composeCopied, setComposeCopied] = useState(false);
+
+  const handleCompose = async () => {
+    if (!selectedSystemId) return;
+    setComposing(true);
+    setComposeError(null);
+    try {
+      const res = await composerService.compose(selectedSystemId);
+      setComposedPrompt(res.prompt);
+      setComposeModalOpen(true);
+    } catch (err: unknown) {
+      setComposeError(err instanceof Error ? err.message : "Failed to compose prompt.");
+    } finally {
+      setComposing(false);
+    }
+  };
+
+  const handleCopyComposed = () => {
+    if (!composedPrompt) return;
+    navigator.clipboard.writeText(composedPrompt);
+    setComposeCopied(true);
+    setTimeout(() => setComposeCopied(false), 2000);
+  };
+
   if (loadingDetails) {
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-3 text-muted-foreground">
@@ -290,12 +344,70 @@ export function PromptEditor({
                 outputFormat={editOutputFormat}
               />
             </div>
-            <Button className="mt-3 w-full" onClick={onPreview}>
-              <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
-            </Button>
+            <div className="mt-3 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleCompose}
+                disabled={composing || !selectedSystemId}
+              >
+                {composing ? (
+                  <>
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                    Composing...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="mr-1.5 size-3.5" />
+                    Compose Prompt
+                  </>
+                )}
+              </Button>
+              <Button className="w-full" onClick={onPreview}>
+                <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
+              </Button>
+            </div>
+            {composeError && (
+              <p className="mt-2 text-xs text-destructive">{composeError}</p>
+            )}
           </div>
         </aside>
       </div>
+
+      {/* Composed Prompt Modal */}
+      <Dialog open={composeModalOpen} onOpenChange={setComposeModalOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-popover sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Final Prompt</DialogTitle>
+            <DialogDescription>
+              Composed from instructions, variables, attached modules, and output requirements.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 rounded-lg bg-preview p-4 font-mono text-xs leading-relaxed text-preview-foreground">
+            <pre className="whitespace-pre-wrap font-mono text-xs">{composedPrompt}</pre>
+          </div>
+          <DialogFooter className="mt-4 flex sm:justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyComposed}
+            >
+              {composeCopied ? (
+                <>
+                  <Check className="mr-1.5 size-3.5 text-success" /> Copied
+                </>
+              ) : (
+                <>
+                  <Clipboard className="mr-1.5 size-3.5" /> Copy Prompt
+                </>
+              )}
+            </Button>
+            <Button size="sm" onClick={() => setComposeModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
