@@ -49,6 +49,7 @@ interface PromptEditorProps {
   validationResult: VariableValidationResponse | null;
   validatingVariables: boolean;
   onValidateVariables: () => void;
+  onNavigateToModules?: () => void;
 }
 
 export function PromptEditor({
@@ -86,6 +87,7 @@ export function PromptEditor({
   validationResult,
   validatingVariables,
   onValidateVariables,
+  onNavigateToModules,
 }: PromptEditorProps) {
   if (loadingDetails) {
     return (
@@ -234,7 +236,13 @@ export function PromptEditor({
             />
           )}
 
-          {activeTab === "Modules" && <ModulesTab editModules={editModules} />}
+          {activeTab === "Modules" && (
+            <ModulesTab
+              editModules={editModules}
+              promptSystemId={selectedSystemId}
+              onNavigateToModules={onNavigateToModules}
+            />
+          )}
 
           {activeTab === "Examples" && (
             <ExamplesTab

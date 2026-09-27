@@ -1,4 +1,4 @@
-import { Boxes, Edit2, FileCode2, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { AlertCircle, Boxes, Edit2, FileCode2, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { SystemModulesSection } from "./SystemModulesSection";
 
 export function Panel({
   title,
@@ -296,33 +297,23 @@ export function InstructionsTab({
 }
 
 // Tab: Modules
-export function ModulesTab({ editModules }: { editModules: unknown[] }) {
+export function ModulesTab({
+  promptSystemId,
+  onNavigateToModules,
+}: {
+  editModules?: unknown[];
+  promptSystemId?: number | null;
+  onNavigateToModules?: () => void;
+}) {
   return (
     <Panel
       title="Prompt Modules"
-      description="Reusable blocks included when the prompt is compiled."
+      description="Attach and configure reusable prompt modules with defined boundary inputs and outputs."
     >
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {editModules && editModules.length > 0 ? (
-          editModules.map((m, idx) => {
-            const modObj = typeof m === "object" && m !== null ? (m as { name?: string; description?: string }) : null;
-            return (
-              <ModuleItem
-                key={idx}
-                name={typeof m === "string" ? m : modObj?.name || `Module ${idx + 1}`}
-                description={modObj?.description || "Module block"}
-                enabled
-              />
-            );
-          })
-        ) : (
-          <>
-            <ModuleItem name="Research Module" description="Creates a fact checklist before drafting." enabled />
-            <ModuleItem name="Critic Module" description="Challenges claims, gaps, and weak reasoning." enabled />
-            <ModuleItem name="Writer Module" description="Transforms the plan into polished prose." enabled />
-          </>
-        )}
-      </div>
+      <SystemModulesSection
+        promptSystemId={promptSystemId ?? null}
+        onNavigateToModules={onNavigateToModules}
+      />
     </Panel>
   );
 }
@@ -522,40 +513,207 @@ export function OutputTab({
   saving: boolean;
   onSave: () => void;
 }) {
-  const outputText =
-    typeof editOutputFormat === "string"
-      ? editOutputFormat
-      : editOutputFormat && typeof editOutputFormat === "object" && Object.keys(editOutputFormat).length > 0
-        ? JSON.stringify(editOutputFormat, null, 2)
-        : "Return clean Markdown.\n\n- Start with a three-bullet summary\n- Use descriptive H2 and H3 headings\n- Include runnable code blocks where useful\n- Target 1,000–1,400 words\n- End with practical next steps";
+  const detectType = (val: unknown): "text" | "object" | "list" => {
+    if (Array.isArray(val)) return "list";
+    if (typeof val === "object" && val !== null) return "object";
+    return "text";
+  };
+
+  const [outputType, setOutputType] = React.useState<"text" | "object" | "list">(() =>
+    detectType(editOutputFormat)
+  );
+
+  const [content, setContent] = React.useState<string>(() => {
+    if (typeof editOutputFormat === "string") return editOutputFormat;
+    if (editOutputFormat && typeof editOutputFormat === "object") {
+      return JSON.stringify(editOutputFormat, null, 2);
+    }
+    return "Return clean Markdown.\n\n- Start with a three-bullet summary\n- Use descriptive H2 and H3 headings\n- Include runnable code blocks where useful\n- Target 1,000–1,400 words\n- End with practical next steps";
+  });
+
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+
+  // Sync content and type when external editOutputFormat changes
+  React.useEffect(() => {
+    const detected = detectType(editOutputFormat);
+    setOutputType(detected);
+    if (typeof editOutputFormat === "string") {
+      setContent(editOutputFormat);
+    } else if (editOutputFormat && typeof editOutputFormat === "object") {
+      setContent(JSON.stringify(editOutputFormat, null, 2));
+    }
+  }, [editOutputFormat]);
+
+  const handleTypeChange = (newType: "text" | "object" | "list") => {
+    setOutputType(newType);
+    setValidationError(null);
+    if (newType === "object") {
+      try {
+        const parsed = JSON.parse(content);
+        if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+          return;
+        }
+      } catch {
+        // fallback to sample object
+      }
+      setContent('{\n  "name": "yogesh"\n}');
+    } else if (newType === "list") {
+      try {
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed)) {
+          return;
+        }
+      } catch {
+        // fallback to sample list
+      }
+      setContent('[\n  "summary",\n  "headings",\n  "code"\n]');
+    } else {
+      if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
+        setContent(
+          "Return clean Markdown.\n\n- Start with a three-bullet summary\n- Use descriptive H2 and H3 headings\n- Include runnable code blocks where useful\n- Target 1,000–1,400 words\n- End with practical next steps"
+        );
+      }
+    }
+  };
+
+  const handleSave = () => {
+    setValidationError(null);
+    if (outputType === "object") {
+      try {
+        const parsed = JSON.parse(content);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          setValidationError(
+            'Output format must be a valid JSON Object (e.g. { "name": "yogesh" }).'
+          );
+          return;
+        }
+        setEditOutputFormat(parsed);
+      } catch (err: unknown) {
+        setValidationError("Invalid JSON syntax. Please check braces, quotes, and commas.");
+        return;
+      }
+    } else if (outputType === "list") {
+      try {
+        const parsed = JSON.parse(content);
+        if (!Array.isArray(parsed)) {
+          setValidationError(
+            'Output format must be a valid JSON List (e.g. [ "summary", "headings", "code" ]).'
+          );
+          return;
+        }
+        setEditOutputFormat(parsed);
+      } catch (err: unknown) {
+        setValidationError("Invalid JSON syntax. Please check brackets, quotes, and commas.");
+        return;
+      }
+    } else {
+      setEditOutputFormat(content);
+    }
+
+    onSave();
+  };
 
   return (
     <Panel
-      title="Output Requirements"
-      description="Set the structure and quality bar for the final response."
+      title="Output Format"
+      description="Define the expected structure and format for final model responses."
     >
-      <Textarea
-        className="min-h-80 font-mono text-xs leading-relaxed"
-        value={outputText}
-        onChange={(e) => {
-          try {
-            setEditOutputFormat(JSON.parse(e.target.value));
-          } catch {
-            setEditOutputFormat(e.target.value);
-          }
-        }}
-        placeholder="Specify output constraints and formatting..."
-      />
-      <div className="mt-4 flex justify-end">
-        <Button size="sm" onClick={onSave} disabled={saving || !editName.trim()}>
-          {saving ? (
-            <>
-              <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Saving...
-            </>
-          ) : (
-            "Save Output Format"
-          )}
-        </Button>
+      <div className="space-y-4">
+        {/* Type Selector */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-medium">Format Type:</span>
+          <div className="flex items-center rounded-lg bg-muted/60 p-0.5 ring-1 ring-border/60">
+            <button
+              type="button"
+              onClick={() => handleTypeChange("text")}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                outputType === "text"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Text
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTypeChange("object")}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                outputType === "object"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Object
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTypeChange("list")}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                outputType === "list"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              List
+            </button>
+          </div>
+
+          <span className="text-[11px] text-muted-foreground">
+            {outputType === "text" && "Plain string or Markdown instructions."}
+            {outputType === "object" && "Valid JSON object dictionary (e.g. { ... })."}
+            {outputType === "list" && "Valid JSON array list (e.g. [ ... ])."}
+          </span>
+        </div>
+
+        {/* Validation error banner */}
+        {validationError && (
+          <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>{validationError}</span>
+          </div>
+        )}
+
+        {/* Content Editor */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium">
+            {outputType === "text"
+              ? "Content Instructions"
+              : outputType === "object"
+                ? "JSON Object Schema / Specification"
+                : "JSON List Specification"}
+          </label>
+          <Textarea
+            className="min-h-80 font-mono text-xs leading-relaxed"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              if (validationError) setValidationError(null);
+            }}
+            placeholder={
+              outputType === "text"
+                ? "Return clean Markdown..."
+                : outputType === "object"
+                  ? '{\n  "name": "yogesh"\n}'
+                  : '[\n  "summary",\n  "headings",\n  "code"\n]'
+            }
+          />
+        </div>
+
+        {/* Save button */}
+        <div className="flex items-center justify-between border-t border-border/60 pt-3">
+          <span className="text-[11px] text-muted-foreground">
+            {outputType !== "text" && "JSON syntax is automatically validated before saving."}
+          </span>
+          <Button size="sm" onClick={handleSave} disabled={saving || !editName.trim()}>
+            {saving ? (
+              <>
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Saving...
+              </>
+            ) : (
+              "Save Output Format"
+            )}
+          </Button>
+        </div>
       </div>
     </Panel>
   );
