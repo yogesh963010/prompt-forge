@@ -13,12 +13,16 @@ import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { clearAuthData, getStoredUser, isAuthenticated } from "@/lib/auth";
 import {
+  moduleService,
   promptSystemService,
+  type PromptModule,
   type PromptSystem,
   type VariableDefinition,
   type VariableValidationResponse,
 } from "@/services";
 
+import { DeleteModuleDialog, ModuleLibrary } from "./dashboard/ModuleLibrary";
+import { ModuleEditor } from "./dashboard/ModuleEditor";
 import { PromptEditor } from "./dashboard/PromptEditor";
 import { PromptLibrary } from "./dashboard/PromptLibrary";
 import {
@@ -33,9 +37,15 @@ import {
   VariableModal,
 } from "./dashboard/VariablesSection";
 
-export function PromptForgeDashboard() {
+export function PromptForgeDashboard({
+  initialScreen = "library",
+}: {
+  initialScreen?: "library" | "editor" | "modules" | "module-editor";
+} = {}) {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState<"library" | "editor">("library");
+  const [screen, setScreen] = useState<"library" | "editor" | "modules" | "module-editor">(
+    initialScreen
+  );
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -143,6 +153,154 @@ export function PromptForgeDashboard() {
       loadPromptSystems();
     }
   }, [loadPromptSystems]);
+
+  // Prompt Modules state
+  const [modules, setModules] = useState<PromptModule[]>([]);
+  const [loadingModules, setLoadingModules] = useState(false);
+  const [modulesError, setModulesError] = useState<string | null>(null);
+
+  // Selected module (Module Editor) state
+  const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
+  const [selectedModule, setSelectedModule] = useState<PromptModule | null>(null);
+  const [isNewModule, setIsNewModule] = useState(false);
+  const [moduleSaving, setModuleSaving] = useState(false);
+  const [moduleSaveError, setModuleSaveError] = useState<string | null>(null);
+  const [moduleSaveSuccess, setModuleSaveSuccess] = useState(false);
+
+  // Delete module dialog state
+  const [deleteModuleDialogOpen, setDeleteModuleDialogOpen] = useState(false);
+  const [moduleToDelete, setModuleToDelete] = useState<PromptModule | null>(null);
+  const [moduleDeleting, setModuleDeleting] = useState(false);
+  const [moduleDeleteError, setModuleDeleteError] = useState<string | null>(null);
+
+  // Fetch modules list from backend
+  const loadModules = useCallback(async () => {
+    setLoadingModules(true);
+    setModulesError(null);
+    try {
+      const data = await moduleService.list();
+      setModules(data);
+    } catch (err: unknown) {
+      const apiErr = err as { status?: number; message?: string };
+      if (apiErr?.status === 401) {
+        handleLogout();
+        return;
+      }
+      setModulesError(apiErr.message || "Failed to load Prompt Modules.");
+    } finally {
+      setLoadingModules(false);
+    }
+  }, [handleLogout]);
+
+  useEffect(() => {
+    if (isAuthenticated()) {
+      loadModules();
+    }
+  }, [loadModules]);
+
+  useEffect(() => {
+    if (initialScreen) {
+      setScreen(initialScreen);
+    }
+  }, [initialScreen]);
+
+  const handleOpenModule = useCallback(
+    async (id: number) => {
+      setSelectedModuleId(id);
+      setIsNewModule(false);
+      setModuleSaveError(null);
+      setModuleSaveSuccess(false);
+
+      const existing = modules.find((m) => m.id === id);
+      if (existing) {
+        setSelectedModule(existing);
+      }
+
+      setScreen("module-editor");
+
+      try {
+        const full = await moduleService.getById(id);
+        setSelectedModule(full);
+      } catch (err: unknown) {
+        const apiErr = err as { message?: string };
+        setModuleSaveError(apiErr.message || "Failed to load module details.");
+      }
+    },
+    [modules]
+  );
+
+  const handleCreateModule = useCallback(() => {
+    setSelectedModuleId(null);
+    setSelectedModule(null);
+    setIsNewModule(true);
+    setModuleSaveError(null);
+    setModuleSaveSuccess(false);
+    setScreen("module-editor");
+  }, []);
+
+  const handleSaveModule = useCallback(
+    async (payload: {
+      name: string;
+      description: string;
+      instructions: string;
+      variables: VariableDefinition[];
+      input_context: string[];
+      output_contract: string;
+      examples: Array<{ title?: string; input: string; output: string }>;
+    }) => {
+      setModuleSaving(true);
+      setModuleSaveError(null);
+      setModuleSaveSuccess(false);
+
+      try {
+        if (isNewModule) {
+          const created = await moduleService.create(payload);
+          setModules((prev) => [created, ...prev]);
+          setSelectedModule(created);
+          setSelectedModuleId(created.id);
+          setIsNewModule(false);
+          setModuleSaveSuccess(true);
+        } else if (selectedModuleId) {
+          const updated = await moduleService.update(selectedModuleId, payload);
+          setModules((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+          setSelectedModule(updated);
+          setModuleSaveSuccess(true);
+        }
+      } catch (err: unknown) {
+        const apiErr = err as { message?: string };
+        setModuleSaveError(apiErr.message || "Failed to save module.");
+      } finally {
+        setModuleSaving(false);
+      }
+    },
+    [isNewModule, selectedModuleId]
+  );
+
+  const promptDeleteModule = useCallback((mod: PromptModule) => {
+    setModuleToDelete(mod);
+    setModuleDeleteError(null);
+    setDeleteModuleDialogOpen(true);
+  }, []);
+
+  const handleConfirmDeleteModule = useCallback(async () => {
+    if (!moduleToDelete) return;
+    setModuleDeleting(true);
+    setModuleDeleteError(null);
+    try {
+      await moduleService.delete(moduleToDelete.id);
+      setModules((prev) => prev.filter((m) => m.id !== moduleToDelete.id));
+      setDeleteModuleDialogOpen(false);
+      setModuleToDelete(null);
+      if (screen === "module-editor") {
+        setScreen("modules");
+      }
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      setModuleDeleteError(apiErr.message || "Failed to delete module.");
+    } finally {
+      setModuleDeleting(false);
+    }
+  }, [moduleToDelete, screen]);
 
   // Validate variables against instructions using backend API
   const runValidateVariables = useCallback(
@@ -606,17 +764,20 @@ export function PromptForgeDashboard() {
           open={mobileNav}
           user={currentUser}
           systemCount={systems.length}
+          moduleCount={modules.length}
+          currentScreen={screen}
           onClose={() => setMobileNav(false)}
           onHome={() => {
             setScreen("library");
             setMobileNav(false);
           }}
           onEditor={() => {
-            if (systems.length > 0) {
-              openEditor(systems[0].id);
-            } else {
-              setNewOpen(true);
-            }
+            setScreen("library");
+            setMobileNav(false);
+          }}
+          onModules={() => {
+            setScreen("modules");
+            setMobileNav(false);
           }}
           onLogout={handleLogout}
         />
@@ -633,18 +794,39 @@ export function PromptForgeDashboard() {
                 <Menu />
               </Button>
               <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                <button
-                  onClick={() => setScreen("library")}
-                  className="cursor-pointer hover:text-foreground"
-                >
-                  Prompt Library
-                </button>
-                {screen === "editor" && selectedSystem && (
+                {screen === "modules" || screen === "module-editor" ? (
                   <>
-                    <span>/</span>
-                    <span className="font-medium text-foreground truncate max-w-[200px]">
-                      {editName || selectedSystem.name}
-                    </span>
+                    <button
+                      onClick={() => setScreen("modules")}
+                      className="cursor-pointer hover:text-foreground"
+                    >
+                      Prompt Modules
+                    </button>
+                    {screen === "module-editor" && (
+                      <>
+                        <span>/</span>
+                        <span className="font-medium text-foreground truncate max-w-[200px]">
+                          {isNewModule ? "Create Module" : selectedModule?.name || "Edit Module"}
+                        </span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setScreen("library")}
+                      className="cursor-pointer hover:text-foreground"
+                    >
+                      Prompt Library
+                    </button>
+                    {screen === "editor" && selectedSystem && (
+                      <>
+                        <span>/</span>
+                        <span className="font-medium text-foreground truncate max-w-[200px]">
+                          {editName || selectedSystem.name}
+                        </span>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -690,22 +872,23 @@ export function PromptForgeDashboard() {
                   </>
                 )}
 
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    screen === "editor" ? setPreviewOpen(true) : setNewOpen(true)
-                  }
-                >
-                  {screen === "editor" ? (
-                    <>
-                      <Sparkles /> Preview Prompt
-                    </>
-                  ) : (
-                    <>
-                      <Plus /> New Prompt System
-                    </>
-                  )}
-                </Button>
+                {screen === "modules" && (
+                  <Button size="sm" onClick={handleCreateModule}>
+                    <Plus className="mr-1.5 size-3.5" /> Create Module
+                  </Button>
+                )}
+
+                {screen === "library" && (
+                  <Button size="sm" onClick={() => setNewOpen(true)}>
+                    <Plus className="mr-1.5 size-3.5" /> New Prompt System
+                  </Button>
+                )}
+
+                {screen === "editor" && (
+                  <Button size="sm" onClick={() => setPreviewOpen(true)}>
+                    <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
+                  </Button>
+                )}
 
                 <Button
                   variant="ghost"
@@ -720,7 +903,7 @@ export function PromptForgeDashboard() {
             </div>
           </header>
 
-          {screen === "library" ? (
+          {screen === "library" && (
             <PromptLibrary
               search={search}
               setSearch={setSearch}
@@ -742,7 +925,9 @@ export function PromptForgeDashboard() {
               onArchive={handleArchivePromptSystem}
               onUnarchive={handleUnarchivePromptSystem}
             />
-          ) : (
+          )}
+
+          {screen === "editor" && (
             <PromptEditor
               activeTab={activeTab}
               setActiveTab={setActiveTab}
@@ -778,6 +963,36 @@ export function PromptForgeDashboard() {
               validationResult={validationResult}
               validatingVariables={validatingVariables}
               onValidateVariables={() => selectedSystemId && runValidateVariables(selectedSystemId)}
+              onNavigateToModules={() => setScreen("modules")}
+            />
+          )}
+
+          {screen === "modules" && (
+            <ModuleLibrary
+              modules={modules}
+              loading={loadingModules}
+              error={modulesError}
+              onRefresh={loadModules}
+              onCreateModule={handleCreateModule}
+              onOpenModule={handleOpenModule}
+              onEditModule={handleOpenModule}
+              onDeleteModule={promptDeleteModule}
+            />
+          )}
+
+          {screen === "module-editor" && (
+            <ModuleEditor
+              module={selectedModule}
+              moduleId={selectedModuleId}
+              isNew={isNewModule}
+              saving={moduleSaving}
+              saveError={moduleSaveError}
+              saveSuccess={moduleSaveSuccess}
+              onSave={handleSaveModule}
+              onDelete={
+                selectedModule ? () => promptDeleteModule(selectedModule) : undefined
+              }
+              onBack={() => setScreen("modules")}
             />
           )}
         </main>
@@ -872,6 +1087,23 @@ export function PromptForgeDashboard() {
         outputFormat={editOutputFormat}
         copied={copied}
         onCopy={copyPreview}
+      />
+
+      <DeleteModuleDialog
+        open={deleteModuleDialogOpen}
+        onOpenChange={(open) => {
+          if (!moduleDeleting) {
+            setDeleteModuleDialogOpen(open);
+            if (!open) {
+              setModuleDeleteError(null);
+              setModuleToDelete(null);
+            }
+          }
+        }}
+        module={moduleToDelete}
+        deleting={moduleDeleting}
+        error={moduleDeleteError}
+        onConfirm={handleConfirmDeleteModule}
       />
     </div>
   );

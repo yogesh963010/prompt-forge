@@ -92,86 +92,138 @@ export function VariableDetectionBanner({
 }: VariableDetectionBannerProps) {
   return (
     <div className="rounded-lg bg-card/55 p-4 ring-1 ring-border/60">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
         <div className="flex items-center gap-2">
           <Sparkles className="size-4 text-primary" />
-          <h3 className="text-xs font-semibold">Instructions Variable Detection</h3>
+          <h3 className="text-xs font-semibold">Variables Validation & Detection</h3>
           {validating ? (
             <span className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
               <Loader2 className="size-3 animate-spin" /> Validating...
             </span>
-          ) : validationResult?.valid ? (
-            <span className="rounded-md bg-success-soft px-1.5 py-0.5 font-mono text-[9px] uppercase text-success">
-              All Matched
-            </span>
-          ) : validationResult && validationResult.missing_variables.length > 0 ? (
-            <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 font-mono text-[9px] uppercase text-destructive">
-              Missing Configuration
+          ) : validationResult ? (
+            <span
+              className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase ${
+                validationResult.valid
+                  ? "bg-success-soft text-success"
+                  : "bg-destructive/15 text-destructive"
+              }`}
+            >
+              Status: {validationResult.valid ? "Valid" : "Invalid"}
             </span>
           ) : null}
         </div>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="h-7 text-xs text-muted-foreground hover:text-foreground"
+          className="h-7 text-xs"
           onClick={onValidate}
           disabled={validating}
         >
-          <RefreshCw className={`mr-1 size-3 ${validating ? "animate-spin" : ""}`} />
-          Validate
+          <RefreshCw className={`mr-1.5 size-3 ${validating ? "animate-spin" : ""}`} />
+          Validate Variables
         </Button>
       </div>
 
-      {/* Detected variables chips */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-muted-foreground">Referenced in instructions:</span>
-        {validationResult?.detected_variables && validationResult.detected_variables.length > 0 ? (
-          validationResult.detected_variables.map((v) => (
-            <code
-              key={v}
-              className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-primary"
-            >
-              &#123;{v}&#125;
-            </code>
-          ))
-        ) : (
-          <span className="font-mono text-[11px] text-muted-foreground">
-            No &#123;variables&#125; detected in instructions.
-          </span>
-        )}
-      </div>
-
-      {/* Missing variables notice */}
-      {validationResult && validationResult.missing_variables.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md bg-destructive/10 p-2.5 text-xs text-destructive">
-          <AlertCircle className="size-4 shrink-0" />
-          <span>Used in instructions but missing from variables list:</span>
-          {validationResult.missing_variables.map((mv) => (
-            <Button
-              key={mv}
-              variant="outline"
-              size="sm"
-              className="h-6 gap-1 px-2 text-[10px] text-foreground hover:bg-card"
-              onClick={() => onQuickAdd(mv)}
-            >
-              <Plus className="size-2.5" /> Add &#123;{mv}&#125;
-            </Button>
-          ))}
-        </div>
-      )}
-
-      {/* Unused variables notice */}
-      {validationResult && validationResult.unused_variables.length > 0 && (
-        <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <span>Configured but not referenced in instructions:</span>
-          {validationResult.unused_variables.map((uv) => (
-            <span
-              key={uv}
-              className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
-            >
-              {uv}
+      {validationResult ? (
+        <div className="mt-3 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          {/* Detected */}
+          <div className="rounded-md bg-muted/40 p-2.5">
+            <span className="font-mono text-[10px] uppercase text-muted-foreground block mb-1.5">
+              Detected
             </span>
-          ))}
+            {validationResult.detected_variables.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {validationResult.detected_variables.map((v) => (
+                  <code
+                    key={v}
+                    className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-primary"
+                  >
+                    &#123;{v}&#125;
+                  </code>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">None</span>
+            )}
+          </div>
+
+          {/* Configured */}
+          <div className="rounded-md bg-muted/40 p-2.5">
+            <span className="font-mono text-[10px] uppercase text-muted-foreground block mb-1.5">
+              Configured
+            </span>
+            {validationResult.configured_variables.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {validationResult.configured_variables.map((v) => (
+                  <span
+                    key={v}
+                    className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground"
+                  >
+                    {v}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">None</span>
+            )}
+          </div>
+
+          {/* Missing */}
+          <div
+            className={`rounded-md p-2.5 ${
+              validationResult.missing_variables.length > 0
+                ? "bg-destructive/10 text-destructive"
+                : "bg-muted/40"
+            }`}
+          >
+            <span className="font-mono text-[10px] uppercase text-muted-foreground block mb-1.5">
+              Missing
+            </span>
+            {validationResult.missing_variables.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {validationResult.missing_variables.map((mv) => (
+                  <Button
+                    key={mv}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 gap-1 px-1.5 text-[10px] text-destructive hover:bg-card border-destructive/30"
+                    onClick={() => onQuickAdd(mv)}
+                  >
+                    <Plus className="size-2.5" /> &#123;{mv}&#125;
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">None</span>
+            )}
+          </div>
+
+          {/* Unused */}
+          <div className="rounded-md bg-muted/40 p-2.5">
+            <span className="font-mono text-[10px] uppercase text-muted-foreground block mb-1.5">
+              Unused
+            </span>
+            {validationResult.unused_variables.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {validationResult.unused_variables.map((uv) => (
+                  <span
+                    key={uv}
+                    className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+                  >
+                    {uv}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">None</span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 text-xs text-muted-foreground">
+          Click &ldquo;Validate Variables&rdquo; to verify configured variables against{" "}
+          <code className="text-primary font-mono">&#123;variable&#125;</code> placeholders in
+          instructions.
         </div>
       )}
     </div>

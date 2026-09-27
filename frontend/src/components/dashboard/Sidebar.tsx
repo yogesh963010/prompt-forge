@@ -5,9 +5,12 @@ interface SidebarProps {
   open: boolean;
   user: { email?: string; name?: string } | null;
   systemCount: number;
+  moduleCount?: number;
+  currentScreen?: "library" | "editor" | "modules" | "module-editor";
   onClose: () => void;
   onHome: () => void;
   onEditor: () => void;
+  onModules?: () => void;
   onLogout: () => void;
 }
 
@@ -15,15 +18,21 @@ export function Sidebar({
   open,
   user,
   systemCount,
+  moduleCount = 0,
+  currentScreen = "library",
   onClose,
   onHome,
   onEditor,
+  onModules,
   onLogout,
 }: SidebarProps) {
+  const isPromptSystemsActive = currentScreen === "library" || currentScreen === "editor";
+  const isModulesActive = currentScreen === "modules" || currentScreen === "module-editor";
+
   const links = [
-    { label: "Home", icon: Home, action: onHome },
-    { label: "Prompt Systems", icon: BookOpen, action: onEditor },
-    { label: "Modules", icon: Boxes },
+    { label: "Home", icon: Home, action: onHome, active: currentScreen === "library" },
+    { label: "Prompt Systems", icon: BookOpen, action: onEditor, active: isPromptSystemsActive, count: systemCount },
+    { label: "Modules", icon: Boxes, action: onModules, active: isModulesActive, count: moduleCount },
     { label: "Templates", icon: FileText },
     { label: "Settings", icon: Settings },
   ];
@@ -50,18 +59,18 @@ export function Sidebar({
       </div>
 
       <nav className="mt-7 space-y-0.5">
-        {links.map(({ label, icon: Icon, action }, index) => (
+        {links.map(({ label, icon: Icon, action, active, count }) => (
           <Button
             key={label}
-            variant={index === 0 ? "secondary" : "ghost"}
+            variant={active ? "secondary" : "ghost"}
             className="w-full justify-start px-3 font-normal"
             onClick={action}
           >
             <Icon />
             {label}
-            {label === "Prompt Systems" && (
+            {count !== undefined && count > 0 && (
               <span className="ml-auto font-mono text-[10px] text-muted-foreground">
-                {systemCount}
+                {count}
               </span>
             )}
           </Button>
