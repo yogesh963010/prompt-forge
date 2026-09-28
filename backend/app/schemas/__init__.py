@@ -5,6 +5,12 @@ from .prompt_system import (
     PromptSystemResponse,
     PromptSystemUpdate,
 )
+from .test_case import (
+    TestCaseCreate,
+    TestCaseResponse,
+    TestCaseRunResponse,
+    TestCaseUpdate,
+)
 
 __all__ = [
     "RegisterRequest",
@@ -14,4 +20,8 @@ __all__ = [
     "PromptSystemCreate",
     "PromptSystemUpdate",
     "PromptSystemResponse",
+    "TestCaseCreate",
+    "TestCaseUpdate",
+    "TestCaseResponse",
+    "TestCaseRunResponse",
 ]

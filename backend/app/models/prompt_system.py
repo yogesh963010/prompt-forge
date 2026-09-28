@@ -19,6 +19,7 @@ from ..database.base import Base
 if TYPE_CHECKING:
     from .user import User
     from .module_reference import ModuleReference
+    from .test_case import TestCase
 
 
 class PromptSystem(Base):
@@ -76,6 +77,13 @@ class PromptSystem(Base):
     # Relationship to ModuleReferences (deleted with system via cascade)
     module_references: Mapped[List["ModuleReference"]] = relationship(
         "ModuleReference",
+        back_populates="prompt_system",
+        cascade="all, delete-orphan",
+    )
+
+    # Relationship to TestCases (deleted with system via cascade)
+    test_cases: Mapped[List["TestCase"]] = relationship(
+        "TestCase",
         back_populates="prompt_system",
         cascade="all, delete-orphan",
     )
