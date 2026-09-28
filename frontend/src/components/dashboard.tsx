@@ -1081,6 +1081,7 @@ export function PromptForgeDashboard({
       <PromptPreviewDialog
         open={previewOpen}
         onOpenChange={setPreviewOpen}
+        promptSystemId={selectedSystemId}
         instructions={editInstructions}
         variables={editVariables}
         modules={editModules}
