@@ -11,7 +11,7 @@ from .prompt_system_service import (
     get_prompt_system_by_id,
     update_prompt_system,
 )
-from .composer_service import compose_prompt_system
+from .composer_service import compose_prompt_system, preview_prompt_system
 
 __all__ = [
     "create_access_token",
@@ -23,4 +23,5 @@ __all__ = [
     "update_prompt_system",
     "delete_prompt_system",
     "compose_prompt_system",
+    "preview_prompt_system",
 ]

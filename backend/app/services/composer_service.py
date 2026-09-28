@@ -1,6 +1,6 @@
-"""Prompt Composer service layer for assembling Prompt Systems deterministically."""
+"""Prompt Composer & Preview service layer for assembling and previewing Prompt Systems deterministically."""
 import json
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -84,7 +84,6 @@ def format_examples_section(examples: Any) -> Optional[str]:
             if formatted:
                 blocks.append(formatted)
     elif isinstance(examples, dict):
-        # Could be a single example dictionary or a map of examples
         inp = examples.get("input") or examples.get("prompt")
         out = examples.get("expected") or examples.get("output") or examples.get("response")
         if inp is not None or out is not None:
@@ -179,22 +178,14 @@ def format_module_output_mapping(output_mapping: Any) -> Optional[str]:
     return None
 
 
-async def compose_prompt_system(
+async def assemble_prompt_system(
     db: AsyncSession,
     prompt_system_id: int,
     user_id: int,
-) -> str:
-    """Assemble a PromptSystem into a single final composed prompt text.
+) -> Tuple[str, Dict[str, Any]]:
+    """Assemble a PromptSystem returning both raw composed prompt text and structured data.
 
-    Deterministic pipeline:
-    1. Load PromptSystem with ownership check.
-    2. Read core instructions.
-    3. Read system variables.
-    4. Read examples.
-    5. Load enabled ModuleReferences in order.
-    6. For each module, format instructions, context, contract, output mapping.
-    7. Read output requirements.
-    8. Combine into standardized final prompt text.
+    Single source of truth for both compose and preview flows.
     """
     # 1. Fetch PromptSystem
     stmt = select(PromptSystem).where(PromptSystem.id == prompt_system_id)
@@ -215,10 +206,13 @@ async def compose_prompt_system(
         )
 
     sections: List[str] = []
+    structured_modules: List[Dict[str, Any]] = []
 
     # 3. Core Instructions
+    instructions_text = None
     if prompt_system.instructions and prompt_system.instructions.strip():
-        sections.append(f"SYSTEM INSTRUCTIONS\n\n{prompt_system.instructions.strip()}")
+        instructions_text = prompt_system.instructions.strip()
+        sections.append(f"SYSTEM INSTRUCTIONS\n\n{instructions_text}")
 
     # 4. System Variables / Context
     variables_text = format_variables_section(prompt_system.variables)
@@ -290,10 +284,61 @@ async def compose_prompt_system(
 
         sections.append("\n\n".join(module_parts))
 
+        # Build structured module entry
+        structured_modules.append({
+            "name": module.name,
+            "description": module.description.strip() if module.description else None,
+            "instructions": module.instructions.strip() if module.instructions else None,
+            "input_context": ref.input_mapping if ref.input_mapping else module.input_context,
+            "output_contract": module.output_contract,
+            "output_mapping": ref.output_mapping if ref.output_mapping else None,
+        })
+
     # 7. Output Requirements
     output_req_text = format_output_format_section(prompt_system.output_format)
     if output_req_text:
         sections.append(f"OUTPUT REQUIREMENTS\n\n{output_req_text}")
 
-    # Combine all sections
-    return "\n\n".join(sections)
+    raw_prompt = "\n\n".join(sections)
+
+    structured_prompt: Dict[str, Any] = {
+        "instructions": instructions_text,
+        "variables": prompt_system.variables if prompt_system.variables else [],
+        "examples": prompt_system.examples if prompt_system.examples else [],
+        "modules": structured_modules,
+        "output_requirements": prompt_system.output_format,
+    }
+
+    return raw_prompt, structured_prompt
+
+
+async def compose_prompt_system(
+    db: AsyncSession,
+    prompt_system_id: int,
+    user_id: int,
+) -> str:
+    """Assemble a PromptSystem into a single final composed prompt text."""
+    raw_prompt, _ = await assemble_prompt_system(
+        db=db,
+        prompt_system_id=prompt_system_id,
+        user_id=user_id,
+    )
+    return raw_prompt
+
+
+async def preview_prompt_system(
+    db: AsyncSession,
+    prompt_system_id: int,
+    user_id: int,
+) -> Dict[str, Any]:
+    """Assemble a PromptSystem into raw composed prompt text and structured sections."""
+    raw_prompt, structured = await assemble_prompt_system(
+        db=db,
+        prompt_system_id=prompt_system_id,
+        user_id=user_id,
+    )
+    return {
+        "prompt_system_id": prompt_system_id,
+        "raw_prompt": raw_prompt,
+        "structured_prompt": structured,
+    }

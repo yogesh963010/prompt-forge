@@ -5,12 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database.connection import get_db
 from ..dependencies.auth import get_current_user
 from ..models.user import User
-from ..schemas.composer import ComposerResponse
-from ..services.composer_service import compose_prompt_system
+from ..schemas.composer import ComposerResponse, PreviewResponse
+from ..services.composer_service import compose_prompt_system, preview_prompt_system
 
 router = APIRouter(
     prefix="/prompt-systems",
-    tags=["Composer"],
+    tags=["Composer & Preview"],
 )
 
 
@@ -39,3 +39,26 @@ async def compose_prompt(
         prompt_system_id=prompt_system_id,
         prompt=composed_text,
     )
+
+
+@router.post(
+    "/{prompt_system_id}/preview",
+    response_model=PreviewResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Generate prompt preview with raw and structured views",
+)
+async def preview_prompt(
+    prompt_system_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PreviewResponse:
+    """Generate prompt preview including raw final prompt and structured sections.
+
+    Uses existing composer service to guarantee deterministic output without duplicating logic.
+    """
+    result = await preview_prompt_system(
+        db=db,
+        prompt_system_id=prompt_system_id,
+        user_id=current_user.id,
+    )
+    return PreviewResponse(**result)
