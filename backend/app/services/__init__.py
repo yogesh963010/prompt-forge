@@ -20,6 +20,14 @@ from .test_service import (
     run_test_case,
     update_test_case,
 )
+from .version_service import (
+    compare_versions,
+    create_prompt_system_snapshot,
+    create_version,
+    get_version,
+    list_versions,
+    restore_version,
+)
 
 __all__ = [
     "create_access_token",
@@ -38,4 +46,10 @@ __all__ = [
     "update_test_case",
     "delete_test_case",
     "run_test_case",
+    "create_prompt_system_snapshot",
+    "create_version",
+    "list_versions",
+    "get_version",
+    "compare_versions",
+    "restore_version",
 ]
