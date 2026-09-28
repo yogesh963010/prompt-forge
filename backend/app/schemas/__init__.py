@@ -11,6 +11,10 @@ from .prompt_version import (
     PromptVersionResponse,
     PromptVersionRestoreResponse,
 )
+from .prompt_run import (
+    PromptRunRequest,
+    PromptRunResponse,
+)
 from .test_case import (
     TestCaseCreate,
     TestCaseResponse,
@@ -34,4 +38,6 @@ __all__ = [
     "PromptVersionResponse",
     "PromptVersionCompareResponse",
     "PromptVersionRestoreResponse",
+    "PromptRunRequest",
+    "PromptRunResponse",
 ]

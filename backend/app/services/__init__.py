@@ -28,6 +28,7 @@ from .version_service import (
     list_versions,
     restore_version,
 )
+from .run_service import run_prompt_system
 
 __all__ = [
     "create_access_token",
@@ -52,4 +53,5 @@ __all__ = [
     "get_version",
     "compare_versions",
     "restore_version",
+    "run_prompt_system",
 ]

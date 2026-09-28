@@ -29,6 +29,7 @@ class VariableDefinition(BaseModel):
     required: bool = Field(default=True, description="Whether the variable is required")
     default: Optional[Any] = Field(None, description="Optional default value")
     description: Optional[str] = Field(None, description="Optional variable description")
+    options: Optional[List[Any]] = Field(default=None, description="Optional choices for select variable type")
 
     @field_validator("name")
     @classmethod

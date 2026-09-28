@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +23,10 @@ interface SystemCardProps {
   onDelete: () => void;
   onArchive?: () => void;
   onUnarchive?: () => void;
+  onRun?: () => void;
 }
 
-export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive }: SystemCardProps) {
+export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onRun }: SystemCardProps) {
   const varCount = Array.isArray(item.variables) ? item.variables.length : 0;
   const modCount = Array.isArray(item.modules) ? item.modules.length : 0;
   const tags = [
@@ -110,6 +112,20 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive }: S
               </Button>
             )
           )}
+          {onRun && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-primary hover:text-primary hover:bg-primary-soft opacity-80 hover:opacity-100"
+              title="Run Prompt System"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRun();
+              }}
+            >
+              <Play className="size-3.5 fill-current" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -150,6 +166,7 @@ interface PromptLibraryProps {
   onDelete: (system: PromptSystem) => void;
   onArchive?: (id: number) => void;
   onUnarchive?: (id: number) => void;
+  onRun?: (system: PromptSystem) => void;
 }
 
 export function PromptLibrary({
@@ -169,6 +186,7 @@ export function PromptLibrary({
   onDelete,
   onArchive,
   onUnarchive,
+  onRun,
 }: PromptLibraryProps) {
   return (
     <div className="pf-fade mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -271,6 +289,7 @@ export function PromptLibrary({
                 onDelete={() => onDelete(item)}
                 onArchive={onArchive ? () => onArchive(item.id) : undefined}
                 onUnarchive={onUnarchive ? () => onUnarchive(item.id) : undefined}
+                onRun={onRun ? () => onRun(item) : undefined}
               />
             ))}
           </div>
