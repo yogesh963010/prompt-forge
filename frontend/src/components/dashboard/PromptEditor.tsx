@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Loader2,
   MoreHorizontal,
+  Play,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -41,6 +42,7 @@ interface PromptEditorProps {
   onRetry: () => void;
   onBackToLibrary: () => void;
   onPreview: () => void;
+  onRun?: () => void;
   onDelete: () => void;
   onArchive?: (id: number) => void;
   onUnarchive?: (id: number) => void;
@@ -79,6 +81,7 @@ export function PromptEditor({
   onRetry,
   onBackToLibrary,
   onPreview,
+  onRun,
   onDelete,
   onArchive,
   onUnarchive,
@@ -189,6 +192,16 @@ export function PromptEditor({
           <span className="rounded-md bg-primary-soft px-2 py-1 font-mono text-[10px] uppercase text-primary">
             v{selectedSystem.version}.0
           </span>
+          {onRun && (
+            <Button
+              size="sm"
+              className="h-7 gap-1.5 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              onClick={onRun}
+              title="Run Prompt System with runtime variables"
+            >
+              <Play className="size-3.5 fill-current" /> Run
+            </Button>
+          )}
         </div>
       </div>
 
@@ -315,6 +328,15 @@ export function PromptEditor({
             <Button className="mt-3 w-full" onClick={onPreview}>
               <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
             </Button>
+            {onRun && (
+              <Button
+                variant="outline"
+                className="mt-2 w-full gap-1.5 border-primary/40 text-primary hover:bg-primary-soft hover:text-primary"
+                onClick={onRun}
+              >
+                <Play className="size-3.5 fill-current" /> Run Prompt
+              </Button>
+            )}
           </div>
         </aside>
       </div>

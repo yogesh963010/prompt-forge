@@ -3,6 +3,7 @@ import {
   Loader2,
   LogOut,
   Menu,
+  Play,
   Plus,
   Sparkles,
   Trash2,
@@ -30,6 +31,7 @@ import {
   DeletePromptSystemDialog,
 } from "./dashboard/PromptModals";
 import { PromptPreviewDialog } from "./dashboard/PromptPreview";
+import { PromptRunModal } from "./dashboard/PromptRunModal";
 import { Sidebar } from "./dashboard/Sidebar";
 import type { Tab } from "./dashboard/types";
 import {
@@ -53,6 +55,12 @@ export function PromptForgeDashboard({
   const [mobileNav, setMobileNav] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [runModalOpen, setRunModalOpen] = useState(false);
+  const [systemToRun, setSystemToRun] = useState<{
+    id: number;
+    name: string;
+    variables: unknown;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [currentUser, setCurrentUser] = useState(getStoredUser());
 
@@ -749,6 +757,26 @@ export function PromptForgeDashboard({
     window.setTimeout(() => setCopied(false), 1600);
   };
 
+  const handleRunFromEditor = () => {
+    if (selectedSystemId) {
+      setSystemToRun({
+        id: selectedSystemId,
+        name: editName || selectedSystem?.name || "Prompt System",
+        variables: editVariables,
+      });
+      setRunModalOpen(true);
+    }
+  };
+
+  const handleRunFromLibrary = (system: PromptSystem) => {
+    setSystemToRun({
+      id: system.id,
+      name: system.name,
+      variables: system.variables,
+    });
+    setRunModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="fixed inset-0 bg-workspace" aria-hidden="true" />
@@ -885,9 +913,14 @@ export function PromptForgeDashboard({
                 )}
 
                 {screen === "editor" && (
-                  <Button size="sm" onClick={() => setPreviewOpen(true)}>
-                    <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => setPreviewOpen(true)}>
+                      <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
+                    </Button>
+                    <Button size="sm" className="gap-1.5" onClick={handleRunFromEditor}>
+                      <Play className="size-3.5 fill-current" /> Run
+                    </Button>
+                  </>
                 )}
 
                 <Button
@@ -924,6 +957,7 @@ export function PromptForgeDashboard({
               onDelete={promptDelete}
               onArchive={handleArchivePromptSystem}
               onUnarchive={handleUnarchivePromptSystem}
+              onRun={handleRunFromLibrary}
             />
           )}
 
@@ -942,6 +976,7 @@ export function PromptForgeDashboard({
               onRetry={() => selectedSystemId && fetchDetails(selectedSystemId)}
               onBackToLibrary={() => setScreen("library")}
               onPreview={() => setPreviewOpen(true)}
+              onRun={handleRunFromEditor}
               onDelete={() => selectedSystem && promptDelete(selectedSystem)}
               onArchive={handleArchivePromptSystem}
               onUnarchive={handleUnarchivePromptSystem}
@@ -1088,6 +1123,14 @@ export function PromptForgeDashboard({
         outputFormat={editOutputFormat}
         copied={copied}
         onCopy={copyPreview}
+      />
+
+      <PromptRunModal
+        open={runModalOpen}
+        onOpenChange={setRunModalOpen}
+        promptSystemId={systemToRun?.id ?? null}
+        promptSystemName={systemToRun?.name}
+        variables={systemToRun?.variables}
       />
 
       <DeleteModuleDialog

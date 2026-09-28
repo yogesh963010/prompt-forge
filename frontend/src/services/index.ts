@@ -7,3 +7,4 @@ export * from "./composerService";
 export * from "./previewService";
 export * from "./testService";
 export * from "./versionService";
+export * from "./runService";
