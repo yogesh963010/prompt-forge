@@ -5,3 +5,4 @@ export * from "./moduleService";
 export * from "./moduleReferenceService";
 export * from "./composerService";
 export * from "./previewService";
+export * from "./testService";

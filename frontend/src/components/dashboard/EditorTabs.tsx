@@ -12,6 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { VariableDefinition } from "@/services";
+import { PromptTestsSection } from "./PromptTestsSection";
 import { SystemModulesSection } from "./SystemModulesSection";
 
 export function Panel({
@@ -720,25 +722,18 @@ export function OutputTab({
 }
 
 // Tab: Tests
-export function TestsTab() {
+export function TestsTab({
+  promptSystemId,
+  systemVariables = [],
+}: {
+  promptSystemId?: number | null;
+  systemVariables?: VariableDefinition[];
+}) {
   return (
-    <Panel
-      title="Test Cases"
-      description="Check expected behavior against representative inputs."
-    >
-      <div className="space-y-3">
-        <TestItem
-          name="Technical depth"
-          variables="topic: Event loops · audience: Senior engineers"
-          expected="Explains implementation details and trade-offs without introductory filler."
-        />
-        <TestItem
-          name="Executive audience"
-          variables="topic: Platform migration · audience: CTO"
-          expected="Prioritizes risk, cost, and architectural implications."
-        />
-      </div>
-    </Panel>
+    <PromptTestsSection
+      promptSystemId={promptSystemId ?? null}
+      systemVariables={systemVariables}
+    />
   );
 }
 

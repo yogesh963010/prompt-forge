@@ -275,7 +275,12 @@ export function PromptEditor({
             />
           )}
 
-          {activeTab === "Tests" && <TestsTab />}
+          {activeTab === "Tests" && (
+            <TestsTab
+              promptSystemId={selectedSystemId}
+              systemVariables={editVariables}
+            />
+          )}
 
           {activeTab === "Versions" && <VersionsTab />}
         </section>

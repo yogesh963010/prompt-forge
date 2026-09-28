@@ -12,6 +12,14 @@ from .prompt_system_service import (
     update_prompt_system,
 )
 from .composer_service import compose_prompt_system, preview_prompt_system
+from .test_service import (
+    create_test_case,
+    delete_test_case,
+    get_test_case,
+    list_test_cases,
+    run_test_case,
+    update_test_case,
+)
 
 __all__ = [
     "create_access_token",
@@ -24,4 +32,10 @@ __all__ = [
     "delete_prompt_system",
     "compose_prompt_system",
     "preview_prompt_system",
+    "create_test_case",
+    "get_test_case",
+    "list_test_cases",
+    "update_test_case",
+    "delete_test_case",
+    "run_test_case",
 ]
