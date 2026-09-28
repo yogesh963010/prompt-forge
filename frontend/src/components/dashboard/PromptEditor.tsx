@@ -282,7 +282,12 @@ export function PromptEditor({
             />
           )}
 
-          {activeTab === "Versions" && <VersionsTab />}
+          {activeTab === "Versions" && (
+            <VersionsTab
+              promptSystemId={selectedSystemId}
+              onRestored={onRetry}
+            />
+          )}
         </section>
 
         <aside>

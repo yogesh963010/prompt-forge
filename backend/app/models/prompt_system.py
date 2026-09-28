@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from .user import User
     from .module_reference import ModuleReference
     from .test_case import TestCase
+    from .prompt_version import PromptVersion
 
 
 class PromptSystem(Base):
@@ -84,6 +85,13 @@ class PromptSystem(Base):
     # Relationship to TestCases (deleted with system via cascade)
     test_cases: Mapped[List["TestCase"]] = relationship(
         "TestCase",
+        back_populates="prompt_system",
+        cascade="all, delete-orphan",
+    )
+
+    # Relationship to PromptVersions (deleted with system via cascade)
+    versions: Mapped[List["PromptVersion"]] = relationship(
+        "PromptVersion",
         back_populates="prompt_system",
         cascade="all, delete-orphan",
     )

@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { VariableDefinition } from "@/services";
 import { PromptTestsSection } from "./PromptTestsSection";
+import { PromptVersionsSection } from "./PromptVersionsSection";
 import { SystemModulesSection } from "./SystemModulesSection";
 
 export function Panel({
@@ -738,31 +739,17 @@ export function TestsTab({
 }
 
 // Tab: Versions
-export function VersionsTab() {
+export function VersionsTab({
+  promptSystemId,
+  onRestored,
+}: {
+  promptSystemId?: number | null;
+  onRestored?: () => void;
+}) {
   return (
-    <Panel
-      title="Versions"
-      description="Review and restore earlier Prompt System revisions."
-    >
-      <div className="overflow-hidden rounded-lg ring-1 ring-border/60">
-        {[
-          ["v1.0", "Current version", "Active deployment revision"],
-        ].map(([version, date, note]) => (
-          <div
-            key={version}
-            className="grid gap-2 border-b border-border/60 bg-card/50 p-4 last:border-0 sm:grid-cols-[60px_130px_1fr_auto] sm:items-center"
-          >
-            <span className="font-mono text-xs font-semibold">{version}</span>
-            <span className="text-xs text-muted-foreground">{date}</span>
-            <span className="text-sm">{note}</span>
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm">
-                View
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Panel>
+    <PromptVersionsSection
+      promptSystemId={promptSystemId ?? null}
+      onRestored={onRestored}
+    />
   );
 }
