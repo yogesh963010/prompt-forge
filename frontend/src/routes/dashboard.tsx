@@ -4,7 +4,8 @@ import { isAuthenticated } from "@/lib/auth";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: () => {
-    if (!isAuthenticated()) {
+    // Only redirect on the client — localStorage is unavailable during SSR
+    if (typeof window !== "undefined" && !isAuthenticated()) {
       throw redirect({ to: "/login" });
     }
   },
