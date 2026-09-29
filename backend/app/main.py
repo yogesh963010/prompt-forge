@@ -15,6 +15,7 @@ from .routes.composer import router as composer_router
 from .routes.tests import router as tests_router
 from .routes.versions import router as versions_router
 from .routes.runs import router as runs_router
+from .routes.providers import router as providers_router
 
 app = FastAPI(
     title="PromptForge API",
@@ -40,6 +41,7 @@ app.include_router(composer_router)
 app.include_router(tests_router)
 app.include_router(versions_router)
 app.include_router(runs_router)
+app.include_router(providers_router)
 
 
 @app.get("/", tags=["General"])

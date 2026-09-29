@@ -15,6 +15,12 @@ from .prompt_run import (
     PromptRunRequest,
     PromptRunResponse,
 )
+from .provider import (
+    ProviderActionRequest,
+    ProviderActionResponse,
+    ProviderCapabilities,
+    ProviderResponse,
+)
 from .test_case import (
     TestCaseCreate,
     TestCaseResponse,
@@ -40,4 +46,8 @@ __all__ = [
     "PromptVersionRestoreResponse",
     "PromptRunRequest",
     "PromptRunResponse",
+    "ProviderCapabilities",
+    "ProviderResponse",
+    "ProviderActionRequest",
+    "ProviderActionResponse",
 ]
