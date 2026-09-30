@@ -40,6 +40,14 @@ export default defineConfig(async ({ command }) => {
     server: {
       host: "::",
       port: 8080,
+      proxy: {
+        // Forward all backend API routes to the local FastAPI server.
+        // This means VITE_API_URL can be empty and the app works on any machine.
+        "/auth": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/prompt-systems": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/modules": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/providers": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      },
     },
     plugins,
   };

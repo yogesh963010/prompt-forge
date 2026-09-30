@@ -9,7 +9,8 @@ import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
-    if (isAuthenticated()) {
+    // Only redirect on the client — localStorage is unavailable during SSR
+    if (typeof window !== "undefined" && isAuthenticated()) {
       throw redirect({ to: "/dashboard" });
     }
   },
