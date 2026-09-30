@@ -12,6 +12,7 @@ from ..schemas.prompt_system import (
     PromptSystemUpdate,
     VariableValidationResponse,
 )
+from ..schemas.sharing import SharingStatusResponse, SharingUpdateRequest
 from ..services.prompt_system_service import (
     create_prompt_system,
     delete_prompt_system,
@@ -21,6 +22,7 @@ from ..services.prompt_system_service import (
     set_prompt_system_archived_status,
     update_prompt_system,
 )
+from ..services.sharing_service import get_sharing_status, update_sharing_status
 from ..utils.variable_parser import validate_prompt_variables
 
 router = APIRouter(prefix="/prompt-systems", tags=["Prompt Systems"])
@@ -313,3 +315,66 @@ async def delete_existing_prompt_system(
         "message": "Prompt System deleted successfully.",
         "id": prompt_system_id,
     }
+
+
+@router.get(
+    "/{prompt_system_id}/sharing",
+    response_model=SharingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Sharing Status",
+    description="Retrieve sharing visibility and share link details for a Prompt System owned by the authenticated user.",
+)
+async def get_sharing_status_endpoint(
+    prompt_system_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get sharing status for a Prompt System asynchronously."""
+    prompt_system = await get_prompt_system_by_id(db=db, prompt_system_id=prompt_system_id)
+    if not prompt_system:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prompt System not found.",
+        )
+
+    if prompt_system.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access sharing settings for this Prompt System.",
+        )
+
+    return get_sharing_status(prompt_system)
+
+
+@router.patch(
+    "/{prompt_system_id}/sharing",
+    response_model=SharingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Sharing Settings",
+    description="Change the sharing visibility of a Prompt System owned by the authenticated user.",
+)
+async def update_sharing_status_endpoint(
+    prompt_system_id: int,
+    payload: SharingUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update sharing settings for a Prompt System asynchronously."""
+    prompt_system = await get_prompt_system_by_id(db=db, prompt_system_id=prompt_system_id)
+    if not prompt_system:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prompt System not found.",
+        )
+
+    if prompt_system.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to modify sharing settings for this Prompt System.",
+        )
+
+    return await update_sharing_status(
+        db=db,
+        prompt_system=prompt_system,
+        visibility=payload.visibility,
+    )

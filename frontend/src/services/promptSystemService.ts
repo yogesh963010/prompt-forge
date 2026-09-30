@@ -45,6 +45,8 @@ export interface PromptSystem {
   modules?: unknown;
   version: number;
   archived: boolean;
+  visibility?: string;
+  share_token?: string | null;
   created_at: string;
   updated_at: string;
 }

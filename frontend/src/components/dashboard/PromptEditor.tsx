@@ -3,6 +3,7 @@ import {
   Archive,
   ArchiveRestore,
   CheckCircle2,
+  Globe,
   Loader2,
   MoreHorizontal,
   Play,
@@ -25,6 +26,7 @@ import {
   VersionsTab,
 } from "./EditorTabs";
 import { PromptPreview } from "./PromptPreview";
+import { SharingSection } from "./SharingSection";
 import { tabs, type Tab } from "./types";
 import { VariablesSection } from "./VariablesSection";
 
@@ -192,6 +194,15 @@ export function PromptEditor({
           <span className="rounded-md bg-primary-soft px-2 py-1 font-mono text-[10px] uppercase text-primary">
             v{selectedSystem.version}.0
           </span>
+          <Button
+            variant={activeTab === "Sharing" ? "secondary" : "outline"}
+            size="sm"
+            className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setActiveTab("Sharing")}
+            title="Manage sharing & public link"
+          >
+            <Globe className="size-3.5" /> Share
+          </Button>
           {onRun && (
             <Button
               size="sm"
@@ -300,6 +311,10 @@ export function PromptEditor({
               promptSystemId={selectedSystemId}
               onRestored={onRetry}
             />
+          )}
+
+          {activeTab === "Sharing" && (
+            <SharingSection promptSystemId={selectedSystemId} />
           )}
         </section>
 

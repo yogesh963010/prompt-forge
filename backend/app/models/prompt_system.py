@@ -37,6 +37,10 @@ class PromptSystem(Base):
         nullable=False,
         index=True,
     )
+    # Visibility of the prompt system: private (default) or public_link
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default='private', server_default='private')
+    # Secure token used when visibility is public_link; null otherwise
+    share_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     variables: Mapped[Optional[Any]] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"),

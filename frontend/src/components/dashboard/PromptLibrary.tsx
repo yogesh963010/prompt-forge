@@ -11,6 +11,7 @@ import {
   Search,
   Trash2,
   Play,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,8 +55,16 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onR
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold">{item.name}</h3>
+            {item.visibility === "public_link" && (
+              <span
+                className="ml-auto inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-1.5 py-0.5 font-mono text-[9px] uppercase text-blue-400 border border-blue-500/20"
+                title="Shared via public link"
+              >
+                <Globe className="size-2.5" /> Shared
+              </span>
+            )}
             <span
-              className={`ml-auto rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase ${
+              className={`${item.visibility === "public_link" ? "" : "ml-auto "}rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase ${
                 !item.archived
                   ? "bg-success-soft text-success"
                   : "bg-muted text-muted-foreground"

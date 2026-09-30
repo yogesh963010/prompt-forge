@@ -9,3 +9,4 @@ export * from "./testService";
 export * from "./versionService";
 export * from "./runService";
 export * from "./providerService";
+export * from "./sharingService";
