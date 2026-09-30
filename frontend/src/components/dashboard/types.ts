@@ -6,7 +6,8 @@ export type Tab =
   | "Examples"
   | "Output"
   | "Tests"
-  | "Versions";
+  | "Versions"
+  | "Sharing";
 
 export const tabs: Tab[] = [
   "Overview",
@@ -17,6 +18,7 @@ export const tabs: Tab[] = [
   "Output",
   "Tests",
   "Versions",
+  "Sharing",
 ];
 
 export function formatRelativeTime(dateStr?: string | null): string {

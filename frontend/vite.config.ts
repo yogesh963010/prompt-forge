@@ -41,12 +41,32 @@ export default defineConfig(async ({ command }) => {
       host: "::",
       port: 8080,
       proxy: {
-        // Forward all backend API routes to the local FastAPI server.
+        // Forward backend API routes to the local FastAPI server.
         // This means VITE_API_URL can be empty and the app works on any machine.
+        "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
         "/auth": { target: "http://127.0.0.1:8000", changeOrigin: true },
         "/prompt-systems": { target: "http://127.0.0.1:8000", changeOrigin: true },
-        "/modules": { target: "http://127.0.0.1:8000", changeOrigin: true },
         "/providers": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        // For /modules and /shared: if the browser is navigating to the HTML page (Accept: text/html),
+        // bypass the proxy so Vite renders the frontend React app and styles.
+        "/modules": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          bypass: (req) => {
+            if (req.headers.accept?.includes("text/html")) {
+              return req.url;
+            }
+          },
+        },
+        "/shared": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          bypass: (req) => {
+            if (req.headers.accept?.includes("text/html")) {
+              return req.url;
+            }
+          },
+        },
       },
     },
     plugins,

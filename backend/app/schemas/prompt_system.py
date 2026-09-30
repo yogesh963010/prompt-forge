@@ -139,6 +139,7 @@ class PromptSystemUpdate(BaseModel):
     examples: Optional[Union[List[Any], Dict[str, Any]]] = None
     output_format: Optional[Union[str, Dict[str, Any], List[Any]]] = None
     modules: Optional[Union[List[Any], Dict[str, Any]]] = None
+    visibility: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -174,6 +175,8 @@ class PromptSystemResponse(BaseModel):
     modules: Optional[Any] = None
     version: int
     archived: bool = False
+    visibility: str = "private"
+    share_token: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
