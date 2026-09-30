@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { runService, type VariableDefinition } from "@/services";
+import { providerService, runService, type VariableDefinition } from "@/services";
 
 interface PromptRunModalProps {
   open: boolean;
@@ -204,56 +204,62 @@ export function PromptRunModal({
     }
   };
 
-  // Copy resolved prompt to clipboard
+  // Robust clipboard copy with fallback
+  const copyTextToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // Fallback below
+    }
+
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "-9999px";
+      textArea.setAttribute("readonly", "");
+      document.body.appendChild(textArea);
+      textArea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textArea);
+      return success;
+    } catch {
+      return false;
+    }
+  };
+
+  // Copy resolved prompt to clipboard in Step 2
   const handleCopyPrompt = async () => {
     const textToCopy = isEditingResolved ? editedPrompt : resolvedPrompt;
     if (!textToCopy) return;
 
-    try {
-      await navigator.clipboard.writeText(textToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
-    } catch {
-      // Fallback if clipboard API blocked
-      const textArea = document.createElement("textarea");
-      textArea.value = textToCopy;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
-    }
+    await copyTextToClipboard(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2200);
   };
 
-  // Destination actions
-  const handleSelectDestination = (destination: string) => {
+  // Destination actions: copy prompt and record action without triggering popup blocker
+  const handleSelectProvider = (providerId: string, providerName: string) => {
     const textToCopy = isEditingResolved ? editedPrompt : resolvedPrompt;
+    copyTextToClipboard(textToCopy);
+    setDestinationMessage(`Prompt copied! Opening ${providerName}...`);
 
-    if (destination === "copy") {
-      handleCopyPrompt();
-      setDestinationMessage("Prompt copied to clipboard successfully!");
-      return;
-    }
+    // Asynchronously notify backend action endpoint
+    providerService.executeAction(providerId, textToCopy).catch((err) => {
+      console.debug("Provider action recorded:", err);
+    });
+  };
 
-    // Branch 18 prepares provider execution.
-    // For Branch 17, provide clean destination state and copy to clipboard.
-    if (destination === "chatgpt") {
-      navigator.clipboard?.writeText(textToCopy);
-      setDestinationMessage(
-        "Resolved prompt copied! ChatGPT integration will connect in Branch 18."
-      );
-    } else if (destination === "claude") {
-      navigator.clipboard?.writeText(textToCopy);
-      setDestinationMessage(
-        "Resolved prompt copied! Claude integration will connect in Branch 18."
-      );
-    } else {
-      navigator.clipboard?.writeText(textToCopy);
-      setDestinationMessage(
-        "Resolved prompt copied! Custom provider integration connects in Branch 18."
-      );
-    }
+  const handleCopyDestination = async () => {
+    const textToCopy = isEditingResolved ? editedPrompt : resolvedPrompt;
+    await copyTextToClipboard(textToCopy);
+    setCopied(true);
+    setDestinationMessage("Prompt copied.");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleClose = () => {
@@ -559,14 +565,13 @@ export function PromptRunModal({
 
           {/* STEP 3: DESTINATION */}
           {step === 3 && (
-            <div className="space-y-6 max-w-3xl mx-auto py-2">
+            <div className="space-y-4 max-w-3xl mx-auto py-2">
               <div className="rounded-lg bg-card/60 p-4 ring-1 ring-border/60">
                 <h3 className="text-sm font-semibold text-foreground">
-                  Select Destination
+                  Destination
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Choose where to send or copy your resolved prompt. Actual provider
-                  API integration connects in Branch 18.
+                  Choose a supported provider destination or copy the final prompt.
                 </p>
               </div>
 
@@ -578,86 +583,111 @@ export function PromptRunModal({
                 </div>
               )}
 
-              {/* Destination Choice Cards */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                {/* 1. Copy Prompt */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectDestination("copy")}
-                  className="flex flex-col items-start p-4 rounded-xl border border-border/80 bg-card hover:bg-card/80 hover:border-primary/60 transition text-left group shadow-sm cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 text-primary font-semibold text-sm mb-1.5">
-                    <Copy className="size-4 transition-transform group-hover:scale-110" />
-                    Copy Prompt
+              {/* Provider Destination Cards */}
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-2">
+                {/* 1. ChatGPT */}
+                <div className="flex flex-col justify-between p-4 rounded-xl border border-border/80 bg-card/70 ring-1 ring-border/50">
+                  <div>
+                    <h4 className="font-semibold text-sm text-foreground">ChatGPT</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Open with prompt</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Copy the complete resolved prompt directly to your clipboard for
-                    use anywhere.
-                  </p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] text-primary font-medium">
-                    <span>Copy to clipboard</span>
-                    <ArrowRight className="size-3 transition-transform group-hover:translate-x-1" />
-                  </div>
-                </button>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-4 w-full gap-1.5 text-xs"
+                  >
+                    <a
+                      href="https://chatgpt.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => handleSelectProvider("chatgpt", "ChatGPT")}
+                    >
+                      Open ChatGPT <ExternalLink className="size-3" />
+                    </a>
+                  </Button>
+                </div>
 
-                {/* 2. ChatGPT */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectDestination("chatgpt")}
-                  className="flex flex-col items-start p-4 rounded-xl border border-border/80 bg-card hover:bg-card/80 hover:border-primary/60 transition text-left group shadow-sm cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 text-emerald-500 font-semibold text-sm mb-1.5">
-                    <Bot className="size-4 transition-transform group-hover:scale-110" />
-                    ChatGPT
+                {/* 2. Claude */}
+                <div className="flex flex-col justify-between p-4 rounded-xl border border-border/80 bg-card/70 ring-1 ring-border/50">
+                  <div>
+                    <h4 className="font-semibold text-sm text-foreground">Claude</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Open with prompt</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Send resolved prompt to OpenAI ChatGPT. Destination action prepared
-                    for Branch 18.
-                  </p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] text-emerald-500 font-medium">
-                    <span>Prepare destination</span>
-                    <ExternalLink className="size-3" />
-                  </div>
-                </button>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-4 w-full gap-1.5 text-xs"
+                  >
+                    <a
+                      href="https://claude.ai/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => handleSelectProvider("claude", "Claude")}
+                    >
+                      Open Claude <ExternalLink className="size-3" />
+                    </a>
+                  </Button>
+                </div>
 
-                {/* 3. Claude */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectDestination("claude")}
-                  className="flex flex-col items-start p-4 rounded-xl border border-border/80 bg-card hover:bg-card/80 hover:border-primary/60 transition text-left group shadow-sm cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 text-amber-500 font-semibold text-sm mb-1.5">
-                    <Bot className="size-4 transition-transform group-hover:scale-110" />
-                    Claude
+                {/* 3. Groq */}
+                <div className="flex flex-col justify-between p-4 rounded-xl border border-border/80 bg-card/70 ring-1 ring-border/50">
+                  <div>
+                    <h4 className="font-semibold text-sm text-foreground">Groq</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Open with prompt</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Send resolved prompt to Anthropic Claude. Destination action prepared
-                    for Branch 18.
-                  </p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] text-amber-500 font-medium">
-                    <span>Prepare destination</span>
-                    <ExternalLink className="size-3" />
-                  </div>
-                </button>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-4 w-full gap-1.5 text-xs"
+                  >
+                    <a
+                      href="https://groq.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => handleSelectProvider("groq", "Groq")}
+                    >
+                      Open Groq <ExternalLink className="size-3" />
+                    </a>
+                  </Button>
+                </div>
 
-                {/* 4. Other Provider */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectDestination("other")}
-                  className="flex flex-col items-start p-4 rounded-xl border border-border/80 bg-card hover:bg-card/80 hover:border-primary/60 transition text-left group shadow-sm cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 text-primary font-semibold text-sm mb-1.5">
-                    <Sparkles className="size-4 transition-transform group-hover:scale-110" />
-                    Other Provider
+                {/* 4. Gemini */}
+                <div className="flex flex-col justify-between p-4 rounded-xl border border-border/80 bg-card/70 ring-1 ring-border/50">
+                  <div>
+                    <h4 className="font-semibold text-sm text-foreground">Gemini</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Open with prompt</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Custom API endpoint or external LLM destination. Ready for Branch 18.
-                  </p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] text-primary font-medium">
-                    <span>Prepare destination</span>
-                    <ExternalLink className="size-3" />
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-4 w-full gap-1.5 text-xs"
+                  >
+                    <a
+                      href="https://gemini.google.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => handleSelectProvider("gemini", "Gemini")}
+                    >
+                      Open Gemini <ExternalLink className="size-3" />
+                    </a>
+                  </Button>
+                </div>
+
+                {/* 5. Copy Prompt */}
+                <div className="flex flex-col justify-between p-4 rounded-xl border border-border/80 bg-card/70 ring-1 ring-border/50 sm:col-span-2">
+                  <div>
+                    <h4 className="font-semibold text-sm text-foreground">Copy Prompt</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Copy final prompt</p>
                   </div>
-                </button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 w-full gap-1.5 text-xs"
+                    onClick={handleCopyDestination}
+                  >
+                    <Copy className="size-3" /> Copy
+                  </Button>
+                </div>
               </div>
             </div>
           )}

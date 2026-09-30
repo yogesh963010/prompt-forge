@@ -5,6 +5,7 @@ from .composer import router as composer_router
 from .tests import router as tests_router
 from .versions import router as versions_router
 from .runs import router as runs_router
+from .providers import router as providers_router
 
 __all__ = [
     "auth_router",
@@ -13,4 +14,5 @@ __all__ = [
     "tests_router",
     "versions_router",
     "runs_router",
+    "providers_router",
 ]
