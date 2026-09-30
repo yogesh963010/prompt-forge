@@ -167,7 +167,7 @@ async def research_module(db_session, user1):
         description="Researches a topic.",
         instructions="Research {topic} thoroughly.",
         owner_id=user1.id,
-        input_context=["topic"],
+        input_context=["parent_variables"],
         output_contract="Return concise research findings.",
     )
     db_session.add(m)

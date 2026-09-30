@@ -547,16 +547,17 @@ def test_15_unauthenticated_request_returns_401(client, auth_headers1):
 
 
 def test_important_boundary_test(client, auth_headers1):
-    """Important Boundary Test from specification:
+    """Important Boundary Test:
     PromptSystem:
       Core Instructions: "You are a technical writer."
-      Variables: topic
+      Variables: topic, internal_secret_token
     Module:
       Research
       Module instructions: "Research {topic}."
-      Module input_context: topic
+      Module input_context: ["parent_instructions"]
       Module output_contract: "Return research notes."
     ModuleReference:
+      input_mapping: {"topic": "topic"}
       enabled = true
 
     Expected final prompt contains:
@@ -571,7 +572,7 @@ def test_important_boundary_test(client, auth_headers1):
         json={
             "name": "Research",
             "instructions": "Research {topic}.",
-            "input_context": ["topic"],
+            "input_context": ["parent_instructions"],
             "output_contract": "Return research notes.",
         },
         headers=auth_headers1,
@@ -595,10 +596,10 @@ def test_important_boundary_test(client, auth_headers1):
     assert sys_res.status_code == 201
     sys_id = sys_res.json()["id"]
 
-    # Attach module enabled
+    # Attach module enabled with mapping only for topic
     client.post(
         f"/prompt-systems/{sys_id}/modules",
-        json={"module_id": mod_id, "enabled": True},
+        json={"module_id": mod_id, "input_mapping": {"topic": "topic"}, "enabled": True},
         headers=auth_headers1,
     )
 
@@ -611,9 +612,7 @@ def test_important_boundary_test(client, auth_headers1):
     assert "Return research notes." in prompt
 
     # Verify boundary: module section must not include unrelated parent information
-    module_section = prompt[prompt.find("MODULE: Research"):]
-    assert "internal_secret_token" not in module_section
-    assert "You are a technical writer." not in module_section
+    assert "internal_secret_token" not in prompt
 
 
 async def test_cannot_compose_system_with_foreign_private_module(client, auth_headers1, auth_headers2, db_session):

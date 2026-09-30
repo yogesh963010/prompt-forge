@@ -1,6 +1,6 @@
 """ModuleReference request and response schemas."""
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -56,6 +56,8 @@ class ModuleReferenceResponse(BaseModel):
     prompt_system_id: int
     module_id: int
     module_name: Optional[str] = None
+    module_variables: Optional[List[Any]] = Field(default_factory=list)
+    module_input_context: Optional[List[str]] = Field(default_factory=list)
     input_mapping: Optional[Any] = None
     output_mapping: Optional[Any] = None
     enabled: bool

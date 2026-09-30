@@ -108,7 +108,7 @@ def example_module_payload():
                 "description": "Topic to research",
             }
         ],
-        "input_context": ["topic"],
+        "input_context": ["parent_variables"],
         "output_contract": "Return concise research findings.",
         "examples": [
             {
@@ -132,7 +132,7 @@ def test_1_create_module_successfully(client, user1, auth_headers1, example_modu
     assert data["output_contract"] == "Return concise research findings."
     assert len(data["variables"]) == 1
     assert data["variables"][0]["name"] == "topic"
-    assert data["input_context"] == ["topic"]
+    assert data["input_context"] == ["parent_variables"]
     assert len(data["examples"]) == 1
     assert data["examples"][0]["input"] == "AI agents"
 
@@ -284,12 +284,12 @@ def test_10_input_context_is_stored_correctly(client, auth_headers1):
     """Test 10: input_context array is stored and returned correctly."""
     payload = {
         "name": "Context Module",
-        "input_context": ["topic", "existing_research", "target_audience"],
+        "input_context": ["parent_variables", "parent_instructions", "previous_module_output"],
     }
     resp = client.post("/modules", json=payload, headers=auth_headers1)
     assert resp.status_code == 201
     data = resp.json()
-    assert data["input_context"] == ["topic", "existing_research", "target_audience"]
+    assert data["input_context"] == ["parent_variables", "parent_instructions", "previous_module_output"]
 
 
 def test_11_examples_are_stored_correctly(client, auth_headers1):
@@ -346,7 +346,7 @@ def test_13_partial_update_works(client, auth_headers1, example_module_payload):
     assert data["name"] == "Research"
     assert data["instructions"] == "Research {topic} and summarize the findings."
     assert data["output_contract"] == "Return concise research findings."
-    assert data["input_context"] == ["topic"]
+    assert data["input_context"] == ["parent_variables"]
 
 
 def test_14_non_existent_module_returns_404(client, auth_headers1):
@@ -375,7 +375,7 @@ async def test_15_database_values_are_preserved_after_save_and_retrieval(db_sess
         description="Verifying DB persistence directly",
         instructions="Step 1, Step 2",
         variables=[{"name": "x", "type": "number"}],
-        input_context=["x"],
+        input_context=["parent_variables"],
         output_contract="Text output",
         examples=[{"input": "1", "output": "2"}],
         owner_id=user1.id,
@@ -394,7 +394,7 @@ async def test_15_database_values_are_preserved_after_save_and_retrieval(db_sess
     assert persisted.description == "Verifying DB persistence directly"
     assert persisted.instructions == "Step 1, Step 2"
     assert persisted.variables == [{"name": "x", "type": "number"}]
-    assert persisted.input_context == ["x"]
+    assert persisted.input_context == ["parent_variables"]
     assert persisted.output_contract == "Text output"
     assert persisted.examples == [{"input": "1", "output": "2"}]
     assert persisted.owner_id == user1.id

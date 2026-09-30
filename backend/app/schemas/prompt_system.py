@@ -10,13 +10,23 @@ class VariableType(str, Enum):
     """Allowed variable types according to PromptForge specification."""
     TEXT = "text"
     NUMBER = "number"
+    INTEGER = "integer"
+    BOOLEAN = "boolean"
     SELECT = "select"
     MULTILINE = "multiline"
 
     @classmethod
     def _missing_(cls, value: object):
-        if isinstance(value, str) and value.lower() in ("string", "str"):
-            return cls.TEXT
+        if isinstance(value, str):
+            val_lower = value.lower().strip()
+            if val_lower in ("string", "str"):
+                return cls.TEXT
+            if val_lower in ("int", "integer"):
+                return cls.INTEGER
+            if val_lower in ("bool", "boolean"):
+                return cls.BOOLEAN
+            if val_lower in ("num", "float"):
+                return cls.NUMBER
         return None
 
 

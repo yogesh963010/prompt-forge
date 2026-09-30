@@ -411,6 +411,7 @@ async def test_13_composer_is_used(db_session, client, auth_headers1, user1):
         name="Research Module",
         description="Module providing deep research",
         instructions="Synthesize academic research on the topic.",
+        input_context=["parent_instructions"],
         owner_id=user1.id,
     )
     db_session.add(module)
@@ -445,7 +446,7 @@ async def test_13_composer_is_used(db_session, client, auth_headers1, user1):
     assert response.status_code == 200
     resolved = response.json()["resolved_prompt"]
     # Check that Composer structured sections are present
-    assert "SYSTEM INSTRUCTIONS" in resolved
+    assert "PARENT INSTRUCTIONS" in resolved
     assert "Core instruction for Quantum Computing." in resolved
     assert "MODULE: Research Module" in resolved
     assert "Synthesize academic research on the topic." in resolved
