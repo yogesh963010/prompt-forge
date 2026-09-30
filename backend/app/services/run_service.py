@@ -17,6 +17,7 @@ from ..models.module_reference import ModuleReference
 from ..models.prompt_module import PromptModule
 from ..schemas.prompt_run import PromptRunRequest, PromptRunResponse
 from ..services.composer_service import compose_prompt_system
+from ..services.history_service import save_prompt_run_history
 from ..utils.variable_parser import extract_variables
 
 
@@ -488,6 +489,32 @@ async def run_prompt_system(
             previous_module_output=request.previous_module_output,
         )
 
+        # 7. Save History Snapshot
+        combined_runtime_vars: Dict[str, Any] = {}
+        if isinstance(validated_parent_vars, dict):
+            combined_runtime_vars.update(validated_parent_vars)
+        if isinstance(validated_module_vars, dict):
+            combined_runtime_vars.update(validated_module_vars)
+        if isinstance(request.variables, dict):
+            for k, v in request.variables.items():
+                if k not in combined_runtime_vars:
+                    combined_runtime_vars[k] = v
+        if isinstance(request.module_variables, dict):
+            for k, v in request.module_variables.items():
+                if k not in combined_runtime_vars:
+                    combined_runtime_vars[k] = v
+
+        await save_prompt_run_history(
+            db=db,
+            user_id=user_id,
+            prompt_system_id=prompt_system.id,
+            prompt_system_name=prompt_system.name,
+            final_prompt=resolved_prompt,
+            module_id=selected_module.id,
+            module_name=selected_module.name,
+            runtime_variables=combined_runtime_vars,
+        )
+
         return PromptRunResponse(
             prompt_system_id=prompt_system_id,
             module_id=selected_module.id,
@@ -517,6 +544,26 @@ async def run_prompt_system(
         raw_runtime_variables=request.variables,
         user_input=request.user_input,
         previous_module_output=request.previous_module_output,
+    )
+
+    # Save History Snapshot
+    runtime_vars: Dict[str, Any] = {}
+    if isinstance(validated_parent_vars, dict):
+        runtime_vars.update(validated_parent_vars)
+    if isinstance(request.variables, dict):
+        for k, v in request.variables.items():
+            if k not in runtime_vars:
+                runtime_vars[k] = v
+
+    await save_prompt_run_history(
+        db=db,
+        user_id=user_id,
+        prompt_system_id=prompt_system.id,
+        prompt_system_name=prompt_system.name,
+        final_prompt=resolved_prompt,
+        module_id=None,
+        module_name=None,
+        runtime_variables=runtime_vars,
     )
 
     return PromptRunResponse(

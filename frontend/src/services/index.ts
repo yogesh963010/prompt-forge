@@ -10,3 +10,4 @@ export * from "./versionService";
 export * from "./runService";
 export * from "./providerService";
 export * from "./sharingService";
+export * from "./historyService";
