@@ -89,6 +89,13 @@ async def get_single_module(
     summary="Update a Prompt Module",
     description="Partially update an existing Prompt Module owned by the authenticated user.",
 )
+@router.put(
+    "/{module_id}",
+    response_model=PromptModuleResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update a Prompt Module",
+    description="Update an existing Prompt Module owned by the authenticated user.",
+)
 async def update_existing_module(
     module_id: int,
     payload: PromptModuleUpdate,

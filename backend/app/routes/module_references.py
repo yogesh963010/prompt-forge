@@ -57,15 +57,21 @@ async def _get_owned_prompt_system(
 
 
 def _build_response(reference) -> ModuleReferenceResponse:
-    """Build a ModuleReferenceResponse, populating module_name from the joined module."""
+    """Build a ModuleReferenceResponse, populating module_name, variables, and context from the joined module."""
     module_name = None
+    module_variables = []
+    module_input_context = []
     if reference.prompt_module:
         module_name = reference.prompt_module.name
+        module_variables = reference.prompt_module.variables or []
+        module_input_context = reference.prompt_module.input_context or []
     return ModuleReferenceResponse(
         id=reference.id,
         prompt_system_id=reference.prompt_system_id,
         module_id=reference.module_id,
         module_name=module_name,
+        module_variables=module_variables,
+        module_input_context=module_input_context,
         input_mapping=reference.input_mapping,
         output_mapping=reference.output_mapping,
         enabled=reference.enabled,

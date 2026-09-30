@@ -332,8 +332,10 @@ export function VariableModal({
                 className="w-full rounded-md border border-input bg-card/70 px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 disabled={saving}
               >
-                <option value="text">Text</option>
+                <option value="text">Text / String</option>
                 <option value="number">Number</option>
+                <option value="integer">Integer</option>
+                <option value="boolean">Boolean</option>
                 <option value="select">Select</option>
                 <option value="multiline">Multiline</option>
               </select>

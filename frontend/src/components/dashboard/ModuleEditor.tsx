@@ -63,7 +63,7 @@ export function ModuleEditor({
   onDelete,
   onBack,
 }: ModuleEditorProps) {
-  const [activeTab, setActiveTab] = useState<ModuleTab>("instructions");
+  const [activeTab, setActiveTab] = useState<ModuleTab>("overview");
 
   // Editable fields
   const [name, setName] = useState(module?.name || "");
@@ -76,17 +76,27 @@ export function ModuleEditor({
     return [];
   });
 
-  // Input context state (array of strings)
+  const ALLOWED_CONTEXT_KEYS = [
+    "parent_variables",
+    "parent_instructions",
+    "previous_module_output",
+    "user_input",
+  ] as const;
+
+  // Input context state (array of allowed boundary strings, defaulting to empty)
   const [inputContext, setInputContext] = useState<string[]>(() => {
     if (Array.isArray(module?.input_context)) {
-      return module.input_context.map(String);
+      return module.input_context
+        .map(String)
+        .filter((k) => (ALLOWED_CONTEXT_KEYS as readonly string[]).includes(k));
     }
     if (module?.input_context && typeof module.input_context === "object") {
-      return Object.keys(module.input_context);
+      return Object.keys(module.input_context).filter((k) =>
+        (ALLOWED_CONTEXT_KEYS as readonly string[]).includes(k)
+      );
     }
-    return ["parent_variables", "previous_module_output"];
+    return [];
   });
-  const [newContextKey, setNewContextKey] = useState("");
 
   // Output contract state
   const [outputContract, setOutputContract] = useState<string>(() => {
@@ -188,19 +198,6 @@ export function ModuleEditor({
     } else {
       setInputContext([...inputContext, key]);
     }
-  };
-
-  const addCustomContext = () => {
-    const trimmed = newContextKey.trim();
-    if (!trimmed) return;
-    if (!inputContext.includes(trimmed)) {
-      setInputContext([...inputContext, trimmed]);
-    }
-    setNewContextKey("");
-  };
-
-  const removeContext = (key: string) => {
-    setInputContext(inputContext.filter((k) => k !== key));
   };
 
   // Variable Management handlers
@@ -399,6 +396,14 @@ export function ModuleEditor({
       {/* Tabs navigation */}
       <div className="mt-5 flex flex-wrap gap-1 border-b border-border/60 pb-2">
         <Button
+          variant={activeTab === "overview" ? "secondary" : "ghost"}
+          size="sm"
+          className="text-xs"
+          onClick={() => setActiveTab("overview")}
+        >
+          Information
+        </Button>
+        <Button
           variant={activeTab === "instructions" ? "secondary" : "ghost"}
           size="sm"
           className="text-xs"
@@ -437,14 +442,6 @@ export function ModuleEditor({
           onClick={() => setActiveTab("examples")}
         >
           Examples ({examples.length})
-        </Button>
-        <Button
-          variant={activeTab === "overview" ? "secondary" : "ghost"}
-          size="sm"
-          className="text-xs"
-          onClick={() => setActiveTab("overview")}
-        >
-          Settings
         </Button>
       </div>
 
@@ -566,7 +563,7 @@ export function ModuleEditor({
               receive.
             </p>
 
-            {/* Standard preset toggles */}
+            {/* Standard preset toggles with checkboxes */}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {standardContexts.map(({ key, label, desc }) => {
                 const isSelected = inputContext.includes(key);
@@ -574,72 +571,43 @@ export function ModuleEditor({
                   <div
                     key={key}
                     onClick={() => toggleContext(key)}
-                    className={`cursor-pointer rounded-lg p-3 ring-1 transition ${
+                    className={`cursor-pointer rounded-lg p-3 ring-1 transition flex flex-col justify-between ${
                       isSelected
                         ? "bg-primary/10 ring-primary/60"
                         : "bg-muted/30 ring-border/50 hover:bg-muted/50"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold">{label}</span>
-                      <span
-                        className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase ${
-                          isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {isSelected ? "Active" : "Excluded"}
-                      </span>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label
+                          htmlFor={`context-checkbox-${key}`}
+                          className="flex cursor-pointer items-center gap-2 text-xs font-semibold"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            id={`context-checkbox-${key}`}
+                            checked={isSelected}
+                            onChange={() => toggleContext(key)}
+                            className="size-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>{label}</span>
+                        </label>
+                        <span
+                          className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase ${
+                            isSelected
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {isSelected ? "Active" : "Excluded"}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 pl-6 text-[11px] text-muted-foreground">{desc}</p>
                     </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground">{desc}</p>
                   </div>
                 );
               })}
-            </div>
-
-            {/* Custom context keys */}
-            <div className="mt-5 border-t border-border/60 pt-4">
-              <span className="mb-1 block text-xs font-medium">Custom Context Inputs</span>
-              <p className="mb-2 text-[11px] text-muted-foreground">
-                Add specific input keys expected by this module (e.g. <code>topic</code>,{" "}
-                <code>user_goal</code>).
-              </p>
-
-              <div className="flex gap-2">
-                <Input
-                  className="max-w-xs text-xs font-mono"
-                  placeholder="e.g. topic"
-                  value={newContextKey}
-                  onChange={(e) => setNewContextKey(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCustomContext();
-                    }
-                  }}
-                />
-                <Button size="sm" variant="outline" onClick={addCustomContext}>
-                  <Plus className="mr-1 size-3" /> Add Context
-                </Button>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {inputContext.map((c) => (
-                  <span
-                    key={c}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 font-mono text-xs"
-                  >
-                    <span>{c}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeContext(c)}
-                      className="text-muted-foreground hover:text-destructive"
-                      title={`Remove ${c}`}
-                    >
-                      &times;
-                    </button>
-                  </span>
-                ))}
-              </div>
             </div>
           </div>
         </div>

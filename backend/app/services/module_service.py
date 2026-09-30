@@ -73,9 +73,13 @@ async def update_module(
     update_data = data.model_dump(exclude_unset=True)
     immutable_fields = {"id", "owner_id", "created_at", "updated_at"}
 
+    from sqlalchemy.orm.attributes import flag_modified
+
     for field, value in update_data.items():
         if field not in immutable_fields and hasattr(module, field):
             setattr(module, field, value)
+            if field in {"input_context", "variables", "output_contract", "examples"}:
+                flag_modified(module, field)
 
     await db.commit()
     await db.refresh(module)

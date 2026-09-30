@@ -1017,6 +1017,7 @@ export function PromptForgeDashboard({
 
           {screen === "module-editor" && (
             <ModuleEditor
+              key={selectedModuleId ? `module-${selectedModuleId}` : "new-module"}
               module={selectedModule}
               moduleId={selectedModuleId}
               isNew={isNewModule}

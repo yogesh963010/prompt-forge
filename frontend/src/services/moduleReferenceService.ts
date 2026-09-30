@@ -10,6 +10,8 @@ export interface ModuleReference {
   prompt_system_id: number;
   module_id: number;
   module_name?: string | null;
+  module_variables?: unknown[];
+  module_input_context?: string[];
   input_mapping?: Record<string, unknown> | unknown;
   output_mapping?: Record<string, unknown> | unknown;
   enabled: boolean;

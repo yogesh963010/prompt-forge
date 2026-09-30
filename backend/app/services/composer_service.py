@@ -182,6 +182,9 @@ async def assemble_prompt_system(
     db: AsyncSession,
     prompt_system_id: int,
     user_id: int,
+    selected_module_id: Optional[int] = None,
+    runtime_previous_output: Optional[str] = None,
+    runtime_user_input: Optional[str] = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """Assemble a PromptSystem returning both raw composed prompt text and structured data.
 
@@ -208,21 +211,9 @@ async def assemble_prompt_system(
     sections: List[str] = []
     structured_modules: List[Dict[str, Any]] = []
 
-    # 3. Core Instructions
     instructions_text = None
     if prompt_system.instructions and prompt_system.instructions.strip():
         instructions_text = prompt_system.instructions.strip()
-        sections.append(f"SYSTEM INSTRUCTIONS\n\n{instructions_text}")
-
-    # 4. System Variables / Context
-    variables_text = format_variables_section(prompt_system.variables)
-    if variables_text:
-        sections.append(f"VARIABLES / CONTEXT\n\n{variables_text}")
-
-    # 5. System Examples
-    examples_text = format_examples_section(prompt_system.examples)
-    if examples_text:
-        sections.append(f"EXAMPLES\n\n{examples_text}")
 
     # 6. Enabled Module References (ordered by reference ID)
     stmt_modules = (
@@ -237,67 +228,177 @@ async def assemble_prompt_system(
     result_modules = await db.execute(stmt_modules)
     references = list(result_modules.scalars().all())
 
-    for ref in references:
-        module = ref.prompt_module
-        if not module:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Referenced module ID {ref.module_id} not found.",
-            )
+    if not references:
+        # Standalone Prompt System with no enabled modules: include parent prompt sections
+        if instructions_text:
+            sections.append(f"SYSTEM INSTRUCTIONS\n\n{instructions_text}")
 
-        # Enforce Branch 11 ownership rules
-        if module.owner_id != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"You do not have access to referenced module ID {ref.module_id}.",
-            )
+        variables_text = format_variables_section(prompt_system.variables)
+        if variables_text:
+            sections.append(f"VARIABLES / CONTEXT\n\n{variables_text}")
 
-        module_parts: List[str] = [f"MODULE: {module.name}"]
+        examples_text = format_examples_section(prompt_system.examples)
+        if examples_text:
+            sections.append(f"EXAMPLES\n\n{examples_text}")
 
-        if module.description and module.description.strip():
-            module_parts.append(f"DESCRIPTION:\n{module.description.strip()}")
+        output_req_text = format_output_format_section(prompt_system.output_format)
+        if output_req_text:
+            sections.append(f"OUTPUT REQUIREMENTS\n\n{output_req_text}")
+    else:
+        # If selected_module_id is specified, execute ONLY the selected module
+        if selected_module_id is not None:
+            active_references = [
+                r for r in references
+                if r.module_id == selected_module_id or (r.prompt_module and r.prompt_module.id == selected_module_id)
+            ]
+            if not active_references:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Selected module ID {selected_module_id} is not enabled or not attached to this Prompt System.",
+                )
+        else:
+            active_references = references
 
-        if module.instructions and module.instructions.strip():
-            module_parts.append(f"INSTRUCTIONS:\n{module.instructions.strip()}")
+        # System has enabled modules: Do NOT prepend parent prompt unconditionally!
+        # Context boundaries control what external/parent context each module receives.
+        for ref in active_references:
+            module = ref.prompt_module
+            if not module:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Referenced module ID {ref.module_id} not found.",
+                )
 
-        # Input context respecting boundary configuration
-        input_context_text = format_module_input_context(ref.input_mapping, module.input_context)
-        if input_context_text:
-            module_parts.append(f"INPUT CONTEXT:\n{input_context_text}")
+            # Enforce ownership rules
+            if module.owner_id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"You do not have access to referenced module ID {ref.module_id}.",
+                )
 
-        # Output contract
-        if module.output_contract:
-            if isinstance(module.output_contract, str) and module.output_contract.strip():
-                module_parts.append(f"OUTPUT CONTRACT:\n{module.output_contract.strip()}")
-            elif isinstance(module.output_contract, (dict, list)):
-                module_parts.append(f"OUTPUT CONTRACT:\n{json.dumps(module.output_contract, indent=2)}")
+            module_parts: List[str] = [f"MODULE: {module.name}"]
 
-        # Output mapping
-        output_mapping_text = format_module_output_mapping(ref.output_mapping)
-        if output_mapping_text:
-            module_parts.append(f"OUTPUT:\n{output_mapping_text}")
+            # Module Description
+            if module.description and module.description.strip():
+                module_parts.append(f"DESCRIPTION:\n{module.description.strip()}")
 
-        # Module examples (if any)
-        module_examples_text = format_examples_section(module.examples)
-        if module_examples_text:
-            module_parts.append(f"EXAMPLES:\n{module_examples_text}")
+            # Module Instructions
+            if module.instructions and module.instructions.strip():
+                module_parts.append(f"INSTRUCTIONS:\n{module.instructions.strip()}")
 
-        sections.append("\n\n".join(module_parts))
+            # Extract selected context boundaries
+            selected_contexts = set()
+            if isinstance(module.input_context, list):
+                for item in module.input_context:
+                    if isinstance(item, str):
+                        selected_contexts.add(item.strip())
+                    elif isinstance(item, dict):
+                        name = item.get("name") or item.get("key")
+                        if name:
+                            selected_contexts.add(str(name).strip())
+            elif isinstance(module.input_context, dict):
+                selected_contexts.update(k.strip() for k in module.input_context.keys())
+            elif isinstance(module.input_context, str):
+                selected_contexts.add(module.input_context.strip())
 
-        # Build structured module entry
-        structured_modules.append({
-            "name": module.name,
-            "description": module.description.strip() if module.description else None,
-            "instructions": module.instructions.strip() if module.instructions else None,
-            "input_context": ref.input_mapping if ref.input_mapping else module.input_context,
-            "output_contract": module.output_contract,
-            "output_mapping": ref.output_mapping if ref.output_mapping else None,
-        })
+            # Check if preset keys were supplied in ref.input_mapping
+            if isinstance(ref.input_mapping, dict):
+                for k, v in ref.input_mapping.items():
+                    if k in {"parent_variables", "parent_instructions", "previous_module_output", "user_input"}:
+                        selected_contexts.add(k)
+                    if isinstance(v, str) and v.strip("{}") in {"parent_variables", "parent_instructions", "previous_module_output", "user_input"}:
+                        selected_contexts.add(v.strip("{}"))
 
-    # 7. Output Requirements
-    output_req_text = format_output_format_section(prompt_system.output_format)
-    if output_req_text:
-        sections.append(f"OUTPUT REQUIREMENTS\n\n{output_req_text}")
+            # 1. Parent Instructions (only when parent_instructions is selected)
+            if "parent_instructions" in selected_contexts:
+                if instructions_text:
+                    module_parts.append(f"PARENT INSTRUCTIONS:\n{instructions_text}")
+
+            # 2. Parent Variables (only when parent_variables is selected)
+            if "parent_variables" in selected_contexts:
+                vars_text = format_variables_section(prompt_system.variables)
+                if vars_text:
+                    module_parts.append(f"PARENT VARIABLES:\n{vars_text}")
+
+            # Module Variables (defined by the module itself)
+            module_vars_text = format_variables_section(module.variables)
+            if module_vars_text:
+                module_parts.append(f"MODULE VARIABLES:\n{module_vars_text}")
+
+            # Custom input mapping (for variable-to-param mappings not matching preset names)
+            if isinstance(ref.input_mapping, dict):
+                custom_lines = []
+                for param, source in ref.input_mapping.items():
+                    if param not in {"parent_variables", "parent_instructions", "previous_module_output", "user_input"}:
+                        clean_source = str(source).strip().strip("{}")
+                        clean_param = str(param).strip()
+                        custom_lines.append(f"{clean_param}: {{{clean_source}}}")
+                if custom_lines:
+                    module_parts.append("INPUT CONTEXT:\n" + "\n".join(custom_lines))
+
+            # 3. Previous Module Output (only when previous_module_output is selected)
+            if "previous_module_output" in selected_contexts:
+                if runtime_previous_output is not None and str(runtime_previous_output).strip() != "":
+                    module_parts.append(f"PREVIOUS MODULE OUTPUT:\n{str(runtime_previous_output).strip()}")
+                else:
+                    # Find original index in full list of references
+                    orig_idx = -1
+                    for idx, r in enumerate(references):
+                        if r.id == ref.id:
+                            orig_idx = idx
+                            break
+                    if orig_idx > 0:
+                        prev_ref = references[orig_idx - 1]
+                        prev_mod = prev_ref.prompt_module
+                        if prev_ref.output_mapping and isinstance(prev_ref.output_mapping, dict):
+                            prev_out = format_module_output_mapping(prev_ref.output_mapping)
+                        else:
+                            clean_name = prev_mod.name.lower().replace(" ", "_") if prev_mod else "previous_module"
+                            prev_out = f"{{{clean_name}_output}}"
+                        if prev_out:
+                            module_parts.append(f"PREVIOUS MODULE OUTPUT:\n{prev_out}")
+
+            # 4. User Input (only when user_input is selected)
+            if "user_input" in selected_contexts:
+                if runtime_user_input is not None and str(runtime_user_input).strip() != "":
+                    module_parts.append(f"USER INPUT:\n{str(runtime_user_input).strip()}")
+                else:
+                    module_parts.append("USER INPUT:\n{user_input}")
+
+            # Output contract
+            if module.output_contract:
+                if isinstance(module.output_contract, str) and module.output_contract.strip():
+                    module_parts.append(f"OUTPUT CONTRACT:\n{module.output_contract.strip()}")
+                elif isinstance(module.output_contract, (dict, list)):
+                    module_parts.append(f"OUTPUT CONTRACT:\n{json.dumps(module.output_contract, indent=2)}")
+
+            # Output mapping
+            output_mapping_text = format_module_output_mapping(ref.output_mapping)
+            if output_mapping_text:
+                module_parts.append(f"OUTPUT:\n{output_mapping_text}")
+
+            # Module examples
+            module_examples_text = format_examples_section(module.examples)
+            if module_examples_text:
+                module_parts.append(f"EXAMPLES:\n{module_examples_text}")
+
+            sections.append("\n\n".join(module_parts))
+
+            # Build structured module entry
+            structured_modules.append({
+                "name": module.name,
+                "description": module.description.strip() if module.description else None,
+                "instructions": module.instructions.strip() if module.instructions else None,
+                "variables": module.variables if module.variables else [],
+                "input_context": ref.input_mapping if ref.input_mapping else (list(selected_contexts) if selected_contexts else []),
+                "output_contract": module.output_contract,
+                "output_mapping": ref.output_mapping if ref.output_mapping else None,
+            })
+
+        # 7. Output Requirements (if prompt_system.output_format is configured)
+        output_req_text = format_output_format_section(prompt_system.output_format)
+        if output_req_text:
+            sections.append(f"OUTPUT REQUIREMENTS\n\n{output_req_text}")
 
     raw_prompt = "\n\n".join(sections)
 
@@ -316,12 +417,18 @@ async def compose_prompt_system(
     db: AsyncSession,
     prompt_system_id: int,
     user_id: int,
+    selected_module_id: Optional[int] = None,
+    runtime_previous_output: Optional[str] = None,
+    runtime_user_input: Optional[str] = None,
 ) -> str:
     """Assemble a PromptSystem into a single final composed prompt text."""
     raw_prompt, _ = await assemble_prompt_system(
         db=db,
         prompt_system_id=prompt_system_id,
         user_id=user_id,
+        selected_module_id=selected_module_id,
+        runtime_previous_output=runtime_previous_output,
+        runtime_user_input=runtime_user_input,
     )
     return raw_prompt
 
@@ -330,12 +437,18 @@ async def preview_prompt_system(
     db: AsyncSession,
     prompt_system_id: int,
     user_id: int,
+    selected_module_id: Optional[int] = None,
+    runtime_previous_output: Optional[str] = None,
+    runtime_user_input: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Assemble a PromptSystem into raw composed prompt text and structured sections."""
     raw_prompt, structured = await assemble_prompt_system(
         db=db,
         prompt_system_id=prompt_system_id,
         user_id=user_id,
+        selected_module_id=selected_module_id,
+        runtime_previous_output=runtime_previous_output,
+        runtime_user_input=runtime_user_input,
     )
     return {
         "prompt_system_id": prompt_system_id,
