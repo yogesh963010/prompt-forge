@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Upload, User, Zap } from "lucide-react";
+import { ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { promptSystemService, type PromptSystem } from "@/services/promptSystemService";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { promptSystemService, type PromptSystem, type VariableDefinition } from "@/services/promptSystemService";
 import { moduleReferenceService, type ModuleReference } from "@/services/moduleReferenceService";
 import { conversationsService, type Conversation, type Message } from "@/services/conversationsService";
+import { ragApi } from "@/services/ragApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ParentAssistantChatProps {
@@ -14,47 +16,100 @@ interface ParentAssistantChatProps {
 }
 
 export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantChatProps) {
-  // State for fetching system and modules
+  // System Data
   const [system, setSystem] = useState<PromptSystem | null>(null);
   const [modules, setModules] = useState<ModuleReference[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Instructions State
+  const [isEditingInstructions, setIsEditingInstructions] = useState(false);
+  const [editInstructions, setEditInstructions] = useState("");
+  const [savingInstructions, setSavingInstructions] = useState(false);
+
+  // Variables State
+  const [variables, setVariables] = useState<VariableDefinition[]>([]);
+
+  // Runtime Variables
+  const [runtimeVars, setRuntimeVars] = useState<Record<string, string>>({});
+  const [varsSaved, setVarsSaved] = useState(false);
+  const [isEditingVars, setIsEditingVars] = useState(true);
+
   // Chat State
   const [activeType, setActiveType] = useState<"parent" | "child">("parent");
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
-  
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  
-  // Fake documents state for UI
-  const [documents, setDocuments] = useState<{name: string; type: string}[]>([]);
+
+  // Documents State
+  const [documentStatus, setDocumentStatus] = useState<{has_document: boolean, filename: string | null}>({has_document: false, filename: null});
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function loadDetails() {
-      setLoading(true);
-      setError(null);
-      try {
-        const sys = await promptSystemService.getById(promptSystemId);
-        setSystem(sys);
-        
-        const mods = await moduleReferenceService.list(promptSystemId);
-        setModules(mods.filter((m) => m.enabled));
-      } catch (err: any) {
-        setError(err.message || "Failed to load Parent Assistant details");
-      } finally {
-        setLoading(false);
+  const loadDetails = useCallback(async () => {
+    try {
+      const sys = await promptSystemService.getById(promptSystemId);
+      setSystem(sys);
+      setEditInstructions(sys.instructions || "");
+      setVariables(Array.isArray(sys.variables) ? sys.variables : []);
+      
+      const initialRuntimeVars: Record<string, string> = {};
+      let hasSavedValue = false;
+      if (Array.isArray(sys.variables)) {
+        sys.variables.forEach(v => {
+          const val = (v.default !== undefined && v.default !== null) ? String(v.default) : "";
+          initialRuntimeVars[v.name] = val;
+          if (val) hasSavedValue = true;
+        });
       }
+      setRuntimeVars(initialRuntimeVars);
+      setIsEditingVars(!hasSavedValue); // if we have default vars, show them as text
+
+
+      const mods = await moduleReferenceService.list(promptSystemId);
+      setModules(mods.filter((m) => m.enabled));
+      
+      try {
+        const convs = await conversationsService.getConversations();
+        const latestParentConv = convs.find(c => c.prompt_system_id === promptSystemId && !c.module_id);
+        if (latestParentConv) {
+          setCurrentConversation(latestParentConv);
+        }
+      } catch(e) {
+        console.error("Failed to load history", e);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load Parent Assistant details");
+    } finally {
+      setLoading(false);
     }
-    loadDetails();
   }, [promptSystemId]);
 
-  // Load latest conversation when active tab changes
+  useEffect(() => {
+    setLoading(true);
+    loadDetails();
+  }, [loadDetails]);
+
+  // Load Doc Status
+  const loadDocStatus = useCallback(async () => {
+    try {
+      const status = await ragApi.getStatus();
+      setDocumentStatus(status);
+    } catch (err) {
+      console.error("Failed to load document status", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDocStatus();
+  }, [loadDocStatus]);
+
+  // Load Conversation
   useEffect(() => {
     async function loadConversation() {
       try {
@@ -87,6 +142,54 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
+  // --- Handlers: Instructions ---
+  const handleSaveInstructions = async () => {
+    if (!system) return;
+    setSavingInstructions(true);
+    try {
+      const updated = await promptSystemService.update(system.id, { instructions: editInstructions });
+      setSystem(updated);
+      setIsEditingInstructions(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to save instructions");
+    } finally {
+      setSavingInstructions(false);
+    }
+  };
+
+
+  // --- Handlers: Documents ---
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setUploadingDoc(true);
+      setDocError(null);
+      try {
+        await ragApi.uploadDocument(file);
+        await loadDocStatus();
+      } catch (err: any) {
+        setDocError(err.message || "Upload failed");
+      } finally {
+        setUploadingDoc(false);
+        e.target.value = "";
+      }
+    }
+  };
+
+  const handleRemoveDoc = async () => {
+    setUploadingDoc(true);
+    setDocError(null);
+    try {
+      await ragApi.deleteDocuments();
+      await loadDocStatus();
+    } catch (err: any) {
+      setDocError(err.message || "Delete failed");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  // --- Handlers: Chat ---
   const handleStartNewConversation = async () => {
     try {
       const conv = await conversationsService.createConversation({
@@ -103,7 +206,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   };
 
   const handleSendMessage = async () => {
-    if (!input.trim() || sending) return;
+    if (!input.trim() || sending || !system) return;
 
     let conv = currentConversation;
     if (!conv) {
@@ -129,40 +232,48 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     };
 
     setMessages((prev) => [...prev, tempMsg]);
+    const userMessageContent = input;
     setInput("");
     setSending(true);
     setChatError(null);
 
     try {
-      // Create user message in backend
-      await conversationsService.createMessage(conv.id, "user", tempMsg.content);
+      // Create user message in DB
+      await conversationsService.createMessage(conv.id, "user", userMessageContent);
 
-      // MOCK ASSISTANT REPLY for now (Since we don't connect to RAG/AI yet)
-      setTimeout(async () => {
-        const reply = await conversationsService.createMessage(conv.id, "assistant", "This is a mock response. The real AI backend integration will happen via Railway RAG.");
-        setMessages((prev) => [...prev, reply]);
-        setSending(false);
-      }, 1000);
+      // Construct LLM payload context
+      let promptPrefix = "";
+      if (system.instructions) {
+        promptPrefix += `[System Instructions]\n${system.instructions}\n\n`;
+      }
       
+      const varEntries = Object.entries(runtimeVars);
+      if (varEntries.length > 0) {
+        promptPrefix += `[Variables]\n${varEntries.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
+      }
+
+      promptPrefix += `[User Message]\n`;
+
+      const combinedQuestion = `${promptPrefix}${userMessageContent}`;
+
+      // Call Railway RAG backend
+      const response = await ragApi.askQuestion(combinedQuestion, conv.id.toString());
+      
+      const assistantMsgContent = response.answer;
+
+      // Save assistant message in DB
+      const reply = await conversationsService.createMessage(conv.id, "assistant", assistantMsgContent);
+      
+      // Update UI
+      setMessages((prev) => [...prev, reply]);
     } catch (err: any) {
-      setChatError("Failed to send message");
+      setChatError(err.message || "Failed to get AI response");
+    } finally {
       setSending(false);
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setDocuments(prev => [...prev, { name: file.name, type: file.type || "Document" }]);
-      e.target.value = "";
-    }
-  };
-
-  const handleRemoveDoc = (index: number) => {
-    setDocuments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  if (loading) {
+  if (loading && !system) {
     return (
       <div className="flex h-full items-center justify-center">
         <Loader2 className="size-8 animate-spin text-primary" />
@@ -183,8 +294,6 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     );
   }
 
-  const variablesList = Array.isArray(system.variables) ? system.variables : [];
-
   return (
     <div className="flex h-[calc(100vh-60px)] flex-col md:flex-row bg-background">
       {/* LEFT PANEL: Details & Documents */}
@@ -195,35 +304,110 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             Back to Home
           </Button>
           <h2 className="text-xl font-bold tracking-tight text-foreground">{system.name}</h2>
-          <Badge className="mt-2 bg-primary/10 text-primary border-primary/20 text-[10px]">
+          <span className="inline-flex mt-2 items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors bg-primary/10 text-primary border-primary/20">
             Parent Assistant
-          </Badge>
+          </span>
         </div>
 
         <div className="p-4 space-y-6 flex-1">
           {/* Details Section */}
-          <section className="space-y-3">
+          <section className="space-y-4">
             <div>
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</h3>
               <p className="text-sm text-foreground">{system.description || "No description provided."}</p>
             </div>
-            {system.instructions && (
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Instructions</h3>
-                <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-md border border-border/50 line-clamp-4">
-                  {system.instructions}
-                </p>
+            
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Instructions</h3>
+                {!isEditingInstructions ? (
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingInstructions(true)}>
+                    <Edit2 className="size-3" />
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { setIsEditingInstructions(false); setEditInstructions(system.instructions || ""); }}>
+                      <X className="size-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-success" onClick={handleSaveInstructions} disabled={savingInstructions}>
+                      {savingInstructions ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-            {variablesList.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Variables</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {variablesList.map((v: any, i) => (
-                    <span key={i} className="inline-flex items-center rounded-md bg-secondary/50 px-2 py-0.5 text-[10px] font-medium text-secondary-foreground border border-secondary">
-                      {v.name}
-                    </span>
+              {!isEditingInstructions ? (
+                <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-md border border-border/50 line-clamp-6 whitespace-pre-wrap">
+                  {system.instructions || "No instructions provided."}
+                </p>
+              ) : (
+                <Textarea 
+                  value={editInstructions}
+                  onChange={(e) => setEditInstructions(e.target.value)}
+                  className="text-xs min-h-[120px]"
+                />
+              )}
+            </div>
+
+            {variables.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Variables</h3>
+                  {!isEditingVars && (
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingVars(true)}>
+                      <Edit2 className="size-3" />
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {variables.map(v => (
+                    <div key={`runtime-${v.name}`} className="space-y-1">
+                      <label className="text-xs text-muted-foreground">{v.label || v.name}</label>
+                      {isEditingVars ? (
+                        <Input 
+                          value={runtimeVars[v.name] || ""} 
+                          onChange={(e) => setRuntimeVars(prev => ({ ...prev, [v.name]: e.target.value }))}
+                          className="h-7 text-xs bg-card"
+                        />
+                      ) : (
+                        <div className="text-sm font-medium text-foreground bg-muted/30 p-1.5 rounded border border-border/40 min-h-[28px] break-words">
+                          {runtimeVars[v.name] || <span className="text-muted-foreground italic text-xs">Not provided</span>}
+                        </div>
+                      )}
+                    </div>
                   ))}
+                  {isEditingVars && (
+                    <Button 
+                      size="sm" 
+                      variant={varsSaved ? "secondary" : "default"}
+                      className="w-full mt-2 h-7 text-xs transition-all" 
+                      disabled={varsSaved}
+                      onClick={async () => {
+                        if (!system) return;
+                        try {
+                          const updatedVariables = variables.map(v => ({
+                            ...v,
+                            default: runtimeVars[v.name] || v.default
+                          }));
+                          await promptSystemService.updateVariables(system.id, updatedVariables);
+                          setVariables(updatedVariables);
+                          
+                          setVarsSaved(true);
+                          setTimeout(() => {
+                            setVarsSaved(false);
+                            setIsEditingVars(false);
+                          }, 500);
+                        } catch (err: any) {
+                          alert(err.message || "Failed to save variables to database");
+                        }
+                      }}
+                    >
+                      {varsSaved ? (
+                        <><Check className="mr-1.5 size-3 text-success" /> Submitted</>
+                      ) : (
+                        "Submit Variables"
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -257,7 +441,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                   className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-all border ${
                     activeType === "child" && activeChildId === mod.module_id 
                       ? "bg-primary text-primary-foreground border-primary shadow-sm" 
-                      : "bg-card hover:bg-accent border-border/50 text-foreground"
+                      : "bg-card hover:bg-accent border-border/50 text-foreground opacity-60 hover:opacity-100"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -276,30 +460,34 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           <section className="border-t border-border/60 pt-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Documents (RAG)</h3>
-              <Button size="icon" variant="ghost" className="size-6 rounded-full h-6 w-6" onClick={() => fileInputRef.current?.click()}>
-                <Plus className="size-3.5" />
+              <Button size="icon" variant="ghost" className="size-6 rounded-full h-6 w-6" onClick={() => fileInputRef.current?.click()} disabled={uploadingDoc || documentStatus.has_document}>
+                {uploadingDoc ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               </Button>
-              <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+              <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.txt,.docx,.md,.csv" onChange={handleFileUpload} />
             </div>
             
+            {docError && (
+              <Alert variant="destructive" className="mb-2 py-2 px-3 h-auto min-h-0 text-xs">
+                <AlertDescription className="text-xs">{docError}</AlertDescription>
+              </Alert>
+            )}
+
             <div className="space-y-2">
-              {documents.length === 0 ? (
+              {!documentStatus.has_document ? (
                 <div className="flex flex-col items-center justify-center p-4 border border-dashed border-border/60 rounded-lg bg-muted/20 text-center">
                   <Upload className="size-4 text-muted-foreground mb-1" />
                   <span className="text-[10px] text-muted-foreground">Upload files for context</span>
                 </div>
               ) : (
-                documents.map((doc, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-card/50">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText className="size-3.5 text-primary shrink-0" />
-                      <span className="text-xs truncate font-medium">{doc.name}</span>
-                    </div>
-                    <Button variant="ghost" size="icon" className="size-5 hover:bg-destructive/20 hover:text-destructive shrink-0" onClick={() => handleRemoveDoc(idx)}>
-                      <Trash2 className="size-3" />
-                    </Button>
+                <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-card/50">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <FileText className="size-3.5 text-primary shrink-0" />
+                    <span className="text-xs truncate font-medium">{documentStatus.filename || "Uploaded Document"}</span>
                   </div>
-                ))
+                  <Button variant="ghost" size="icon" className="size-5 hover:bg-destructive/20 hover:text-destructive shrink-0" onClick={handleRemoveDoc} disabled={uploadingDoc}>
+                    {uploadingDoc ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                  </Button>
+                </div>
               )}
             </div>
           </section>
@@ -319,18 +507,33 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                 {activeType === "parent" ? system.name : modules.find(m => m.module_id === activeChildId)?.module_name || "Child Assistant"}
               </h2>
               <p className="text-[11px] text-muted-foreground mt-1">
-                {activeType === "parent" ? "Parent Assistant Chat" : "Child Assistant Chat"}
+                {activeType === "parent" ? "Parent Assistant Chat" : "Child Assistant Chat (Preview)"}
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleStartNewConversation} className="h-8 gap-1.5 text-xs">
-            <Plus className="size-3.5" />
-            New Chat
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => loadConversation()} className="h-8 gap-1.5 text-xs">
+              <RefreshCw className="size-3.5" />
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleStartNewConversation} className="h-8 gap-1.5 text-xs">
+              <Plus className="size-3.5" />
+              New Chat
+            </Button>
+          </div>
         </header>
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 relative">
+          {activeType === "child" && (
+             <div className="mx-auto max-w-md mb-6">
+                <Alert className="bg-primary/5 border-primary/20">
+                  <AlertDescription className="text-xs text-center text-primary/80">
+                    Child Assistant detailed chat implementation will be done later. Clicking here is ready for future implementation.
+                  </AlertDescription>
+                </Alert>
+             </div>
+          )}
+
           {messages.length === 0 && !sending ? (
             <div className="flex h-full flex-col items-center justify-center text-center opacity-60">
               <Bot className="size-12 mb-3 text-primary/50" />
@@ -367,7 +570,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                  </div>
                  <div className="rounded-2xl px-4 py-3 text-sm bg-card border border-border/50 flex items-center gap-2">
                    <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                   <span className="text-muted-foreground text-xs">Assistant is typing...</span>
+                   <span className="text-muted-foreground text-xs">AI is thinking...</span>
                  </div>
                </div>
              </div>
@@ -378,7 +581,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         {/* Chat Input */}
         <div className="border-t border-border/60 bg-background/95 backdrop-blur p-4 pb-6">
           {chatError && (
-             <Alert variant="destructive" className="mb-3 py-2 px-3 h-auto min-h-0 text-xs">
+             <Alert variant="destructive" className="mb-3 py-2 px-3 h-auto min-h-0 text-xs mx-auto max-w-4xl">
                <AlertDescription className="text-xs">{chatError}</AlertDescription>
              </Alert>
           )}
@@ -394,30 +597,21 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               placeholder={`Message ${activeType === "parent" ? "Parent Assistant" : "Child Assistant"}...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="w-full rounded-full border border-border bg-card pl-5 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm"
-              disabled={sending}
+              className="w-full rounded-full border border-border bg-card pl-5 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm disabled:opacity-50"
+              disabled={sending || activeType === "child"}
             />
             <Button
               type="submit"
               size="icon"
-              disabled={!input.trim() || sending}
+              disabled={!input.trim() || sending || activeType === "child"}
               className="absolute right-2 size-9 rounded-full transition-all"
             >
               <Send className="size-4" />
             </Button>
           </form>
-          <div className="text-center mt-2">
-            <span className="text-[10px] text-muted-foreground opacity-70">
-              Messages are generated via mock backend for now.
-            </span>
-          </div>
         </div>
       </div>
+
     </div>
   );
-}
-
-// Simple Badge component for local use if not imported
-function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${className}`}>{children}</span>;
 }
