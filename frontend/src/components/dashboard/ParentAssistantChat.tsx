@@ -746,15 +746,6 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => loadConversation()} className="h-8 gap-1.5 text-xs">
-              <RefreshCw className="size-3.5" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleStartNewConversation} className="h-8 gap-1.5 text-xs">
-              <Plus className="size-3.5" />
-              New Chat
-            </Button>
-          </div>
         </header>
 
         {/* Chat Messages */}
