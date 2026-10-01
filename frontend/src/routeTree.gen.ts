@@ -11,9 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ModulesRouteImport } from './routes/modules'
+import { Route as RagRouteImport } from './routes/rag'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as HistoryHistoryIdRouteImport } from './routes/history.$historyId'
+import { Route as SharedShareTokenRouteImport } from './routes/shared.$shareToken'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,6 +27,11 @@ const IndexRoute = IndexRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -35,48 +44,106 @@ const ModulesRoute = ModulesRouteImport.update({
   path: '/modules',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RagRoute = RagRouteImport.update({
+  id: '/rag',
+  path: '/rag',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryHistoryIdRoute = HistoryHistoryIdRouteImport.update({
+  id: '/$historyId',
+  path: '/$historyId',
+  getParentRoute: () => HistoryRoute,
+} as any)
+const SharedShareTokenRoute = SharedShareTokenRouteImport.update({
+  id: '/shared/$shareToken',
+  path: '/shared/$shareToken',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/history': typeof HistoryRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
+  '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
+  '/history/$historyId': typeof HistoryHistoryIdRoute
+  '/shared/$shareToken': typeof SharedShareTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/history': typeof HistoryRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
+  '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
+  '/history/$historyId': typeof HistoryHistoryIdRoute
+  '/shared/$shareToken': typeof SharedShareTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/history': typeof HistoryRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
+  '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
+  '/history/$historyId': typeof HistoryHistoryIdRoute
+  '/shared/$shareToken': typeof SharedShareTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/login' | '/modules' | '/register'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/history'
+    | '/login'
+    | '/modules'
+    | '/rag'
+    | '/register'
+    | '/history/$historyId'
+    | '/shared/$shareToken'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/login' | '/modules' | '/register'
-  id: '__root__' | '/' | '/dashboard' | '/login' | '/modules' | '/register'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/history'
+    | '/login'
+    | '/modules'
+    | '/rag'
+    | '/register'
+    | '/history/$historyId'
+    | '/shared/$shareToken'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/history'
+    | '/login'
+    | '/modules'
+    | '/rag'
+    | '/register'
+    | '/history/$historyId'
+    | '/shared/$shareToken'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  HistoryRoute: typeof HistoryRouteWithChildren
   LoginRoute: typeof LoginRoute
   ModulesRoute: typeof ModulesRoute
+  RagRoute: typeof RagRoute
   RegisterRoute: typeof RegisterRoute
+  SharedShareTokenRoute: typeof SharedShareTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -95,6 +162,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -109,6 +183,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rag': {
+      id: '/rag'
+      path: '/rag'
+      fullPath: '/rag'
+      preLoaderRoute: typeof RagRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -116,15 +197,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/history/$historyId': {
+      id: '/history/$historyId'
+      path: '/$historyId'
+      fullPath: '/history/$historyId'
+      preLoaderRoute: typeof HistoryHistoryIdRouteImport
+      parentRoute: typeof HistoryRoute
+    }
+    '/shared/$shareToken': {
+      id: '/shared/$shareToken'
+      path: '/shared/$shareToken'
+      fullPath: '/shared/$shareToken'
+      preLoaderRoute: typeof SharedShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface HistoryRouteChildren {
+  HistoryHistoryIdRoute: typeof HistoryHistoryIdRoute
+}
+
+const HistoryRouteChildren: HistoryRouteChildren = {
+  HistoryHistoryIdRoute: HistoryHistoryIdRoute,
+}
+
+const HistoryRouteWithChildren =
+  HistoryRoute._addFileChildren(HistoryRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  HistoryRoute: HistoryRouteWithChildren,
   LoginRoute: LoginRoute,
   ModulesRoute: ModulesRoute,
+  RagRoute: RagRoute,
   RegisterRoute: RegisterRoute,
+  SharedShareTokenRoute: SharedShareTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
