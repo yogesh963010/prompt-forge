@@ -26,6 +26,8 @@ import { DeleteModuleDialog, ModuleLibrary } from "./dashboard/ModuleLibrary";
 import { ModuleEditor } from "./dashboard/ModuleEditor";
 import { PromptEditor } from "./dashboard/PromptEditor";
 import { PromptLibrary } from "./dashboard/PromptLibrary";
+import { PromptHistoryLibrary } from "./dashboard/PromptHistoryLibrary";
+import { PromptHistoryDetail } from "./dashboard/PromptHistoryDetail";
 import {
   CreatePromptSystemDialog,
   DeletePromptSystemDialog,
@@ -38,16 +40,20 @@ import {
   DeleteVariableDialog,
   VariableModal,
 } from "./dashboard/VariablesSection";
+import { historyService, type PromptRunHistoryItem } from "@/services";
 
 export function PromptForgeDashboard({
   initialScreen = "library",
+  initialHistoryId = null,
 }: {
-  initialScreen?: "library" | "editor" | "modules" | "module-editor";
+  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail";
+  initialHistoryId?: number | null;
 } = {}) {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState<"library" | "editor" | "modules" | "module-editor">(
-    initialScreen
-  );
+  const [screen, setScreen] = useState<
+    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail"
+  >(initialScreen);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(initialHistoryId);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -200,17 +206,57 @@ export function PromptForgeDashboard({
     }
   }, [handleLogout]);
 
+  // Prompt History state
+  const [historyItems, setHistoryItems] = useState<PromptRunHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const loadHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const res = await historyService.getHistory();
+      setHistoryItems(res.items || []);
+    } catch (err: unknown) {
+      const apiErr = err as { status?: number; message?: string };
+      if (apiErr?.status === 401) {
+        handleLogout();
+        return;
+      }
+      setHistoryError(apiErr.message || "Failed to load prompt history.");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [handleLogout]);
+
   useEffect(() => {
     if (isAuthenticated()) {
-      loadModules();
+      loadHistory();
     }
-  }, [loadModules]);
+  }, [loadHistory]);
+
+  const handleOpenHistoryDetail = useCallback((id: number) => {
+    setSelectedHistoryId(id);
+    setScreen("history-detail");
+  }, []);
+
+  const handleDeleteHistory = useCallback(async (id: number) => {
+    await historyService.deleteHistory(id);
+    setHistoryItems((prev) => prev.filter((item) => item.id !== id));
+    if (selectedHistoryId === id) {
+      setSelectedHistoryId(null);
+      setScreen("history");
+    }
+  }, [selectedHistoryId]);
 
   useEffect(() => {
     if (initialScreen) {
       setScreen(initialScreen);
     }
-  }, [initialScreen]);
+    if (initialHistoryId) {
+      setSelectedHistoryId(initialHistoryId);
+    }
+  }, [initialScreen, initialHistoryId]);
 
   const handleOpenModule = useCallback(
     async (id: number) => {
@@ -793,6 +839,7 @@ export function PromptForgeDashboard({
           user={currentUser}
           systemCount={systems.length}
           moduleCount={modules.length}
+          historyCount={historyItems.length}
           currentScreen={screen}
           onClose={() => setMobileNav(false)}
           onHome={() => {
@@ -806,6 +853,12 @@ export function PromptForgeDashboard({
           onModules={() => {
             setScreen("modules");
             setMobileNav(false);
+          }}
+          onHistory={() => {
+            setScreen("history");
+            setSelectedHistoryId(null);
+            setMobileNav(false);
+            loadHistory();
           }}
           onLogout={handleLogout}
         />
@@ -822,7 +875,27 @@ export function PromptForgeDashboard({
                 <Menu />
               </Button>
               <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                {screen === "modules" || screen === "module-editor" ? (
+                {screen === "history" || screen === "history-detail" ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setScreen("history");
+                        setSelectedHistoryId(null);
+                      }}
+                      className="cursor-pointer hover:text-foreground"
+                    >
+                      History
+                    </button>
+                    {screen === "history-detail" && (
+                      <>
+                        <span>/</span>
+                        <span className="font-medium text-foreground truncate max-w-[200px]">
+                          Prompt Detail
+                        </span>
+                      </>
+                    )}
+                  </>
+                ) : screen === "modules" || screen === "module-editor" ? (
                   <>
                     <button
                       onClick={() => setScreen("modules")}
@@ -1031,6 +1104,28 @@ export function PromptForgeDashboard({
               onBack={() => setScreen("modules")}
             />
           )}
+
+          {screen === "history" && (
+            <PromptHistoryLibrary
+              historyItems={historyItems}
+              loading={loadingHistory}
+              error={historyError}
+              onRefresh={loadHistory}
+              onOpenDetail={handleOpenHistoryDetail}
+              onDelete={handleDeleteHistory}
+            />
+          )}
+
+          {screen === "history-detail" && selectedHistoryId && (
+            <PromptHistoryDetail
+              historyId={selectedHistoryId}
+              onBack={() => {
+                setScreen("history");
+                setSelectedHistoryId(null);
+              }}
+              onDeleted={handleDeleteHistory}
+            />
+          )}
         </main>
       </div>
 
@@ -1128,7 +1223,12 @@ export function PromptForgeDashboard({
 
       <PromptRunModal
         open={runModalOpen}
-        onOpenChange={setRunModalOpen}
+        onOpenChange={(open) => {
+          setRunModalOpen(open);
+          if (!open) {
+            loadHistory();
+          }
+        }}
         promptSystemId={systemToRun?.id ?? null}
         promptSystemName={systemToRun?.name}
         variables={systemToRun?.variables}
