@@ -28,6 +28,7 @@ import { PromptEditor } from "./dashboard/PromptEditor";
 import { PromptLibrary } from "./dashboard/PromptLibrary";
 import { PromptHistoryLibrary } from "./dashboard/PromptHistoryLibrary";
 import { PromptHistoryDetail } from "./dashboard/PromptHistoryDetail";
+import { RagAssistant } from "./dashboard/RagAssistant";
 import {
   CreatePromptSystemDialog,
   DeletePromptSystemDialog,
@@ -46,12 +47,12 @@ export function PromptForgeDashboard({
   initialScreen = "library",
   initialHistoryId = null,
 }: {
-  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail";
+  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag";
   initialHistoryId?: number | null;
 } = {}) {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<
-    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail"
+    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag"
   >(initialScreen);
   const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(initialHistoryId);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
@@ -860,6 +861,10 @@ export function PromptForgeDashboard({
             setMobileNav(false);
             loadHistory();
           }}
+          onRag={() => {
+            setScreen("rag");
+            setMobileNav(false);
+          }}
           onLogout={handleLogout}
         />
         <main className="min-w-0 flex-1">
@@ -875,7 +880,14 @@ export function PromptForgeDashboard({
                 <Menu />
               </Button>
               <div className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex">
-                {screen === "history" || screen === "history-detail" ? (
+                {screen === "rag" ? (
+                  <button
+                    onClick={() => setScreen("rag")}
+                    className="cursor-pointer font-medium text-foreground hover:text-foreground"
+                  >
+                    AI Assistant
+                  </button>
+                ) : screen === "history" || screen === "history-detail" ? (
                   <>
                     <button
                       onClick={() => {
@@ -932,13 +944,6 @@ export function PromptForgeDashboard({
                 )}
               </div>
               <div className="ml-auto flex items-center gap-2">
-                <div className="hidden items-center gap-2 rounded-md bg-card/60 px-2.5 py-1.5 text-[11px] text-muted-foreground ring-1 ring-border/60 lg:flex">
-                  <span className="rounded bg-primary px-1.5 py-0.5 font-mono font-semibold text-primary-foreground">
-                    ⌘K
-                  </span>{" "}
-                  Command
-                </div>
-
                 {screen === "editor" && selectedSystem && (
                   <>
                     <Button
@@ -1126,6 +1131,8 @@ export function PromptForgeDashboard({
               onDeleted={handleDeleteHistory}
             />
           )}
+
+          {screen === "rag" && <RagAssistant />}
         </main>
       </div>
 
