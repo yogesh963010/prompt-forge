@@ -29,6 +29,7 @@ import {
   type ModuleReference,
   type PromptModule,
 } from "@/services";
+import { PREDEFINED_MODULES, type PredefinedModule } from "@/data/predefinedModules";
 
 interface SystemModulesSectionProps {
   promptSystemId: number | null;
@@ -187,6 +188,39 @@ export function SystemModulesSection({
       } else {
         setAddError(apiErr.message || "Failed to attach module to Prompt System.");
       }
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleAttachPredefined = async (tpl: PredefinedModule) => {
+    if (!promptSystemId) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      const created = await moduleService.create({
+        name: tpl.name,
+        description: tpl.description,
+        instructions: tpl.instructions,
+        variables: tpl.variables,
+        input_context: tpl.input_context,
+        output_contract: tpl.output_contract,
+        examples: tpl.examples,
+      });
+
+      await moduleReferenceService.attach(promptSystemId, {
+        module_id: created.id,
+        input_mapping: {},
+        output_mapping: {},
+        enabled: true,
+      });
+
+      setAddModalOpen(false);
+      setActionSuccess(`Added "${tpl.name}" to Prompt System.`);
+      await loadReferences();
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      setAddError(apiErr.message || "Failed to add predefined module.");
     } finally {
       setAdding(false);
     }
@@ -551,20 +585,45 @@ export function SystemModulesSection({
               <span className="ml-2 text-xs text-muted-foreground">Loading modules...</span>
             </div>
           ) : availableModules.length === 0 ? (
-            <div className="py-6 text-center text-xs text-muted-foreground">
-              <p>You haven&apos;t created any Prompt Modules yet.</p>
+            <div className="py-4 space-y-3 text-xs">
+              <p className="text-muted-foreground text-center">
+                No custom Prompt Modules found. You can attach one of these predefined starter presets directly:
+              </p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {PREDEFINED_MODULES.map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="flex items-center justify-between rounded-lg border border-border/70 bg-card/70 p-2.5 hover:bg-card/90"
+                  >
+                    <div>
+                      <div className="font-semibold text-foreground text-xs">{tpl.name}</div>
+                      <div className="text-[10px] text-muted-foreground line-clamp-1">{tpl.description}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAttachPredefined(tpl)}
+                      disabled={adding}
+                      className="h-7 text-xs shrink-0"
+                    >
+                      {adding ? <Loader2 className="size-3 animate-spin" /> : "+ Attach"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
               {onNavigateToModules && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3"
-                  onClick={() => {
-                    setAddModalOpen(false);
-                    onNavigateToModules();
-                  }}
-                >
-                  Create Your First Module
-                </Button>
+                <div className="text-center pt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={() => {
+                      setAddModalOpen(false);
+                      onNavigateToModules();
+                    }}
+                  >
+                    Go to Module Library
+                  </Button>
+                </div>
               )}
             </div>
           ) : (

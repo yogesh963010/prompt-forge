@@ -1,4 +1,4 @@
-import { BookOpen, Boxes, FileText, History, Home, LogOut, Settings, X } from "lucide-react";
+import { BookOpen, Bot, Boxes, History, Home, LogOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SidebarProps {
@@ -7,12 +7,13 @@ interface SidebarProps {
   systemCount: number;
   moduleCount?: number;
   historyCount?: number;
-  currentScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail";
+  currentScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag";
   onClose: () => void;
   onHome: () => void;
   onEditor: () => void;
   onModules?: () => void;
   onHistory?: () => void;
+  onRag?: () => void;
   onLogout: () => void;
 }
 
@@ -28,19 +29,20 @@ export function Sidebar({
   onEditor,
   onModules,
   onHistory,
+  onRag,
   onLogout,
 }: SidebarProps) {
   const isPromptSystemsActive = currentScreen === "library" || currentScreen === "editor";
   const isModulesActive = currentScreen === "modules" || currentScreen === "module-editor";
   const isHistoryActive = currentScreen === "history" || currentScreen === "history-detail";
+  const isRagActive = currentScreen === "rag";
 
   const links = [
     { label: "Home", icon: Home, action: onHome, active: currentScreen === "library" },
     { label: "Prompt Systems", icon: BookOpen, action: onEditor, active: isPromptSystemsActive, count: systemCount },
     { label: "Modules", icon: Boxes, action: onModules, active: isModulesActive, count: moduleCount },
     { label: "History", icon: History, action: onHistory, active: isHistoryActive, count: historyCount },
-    { label: "Templates", icon: FileText },
-    { label: "Settings", icon: Settings },
+    { label: "AI Assistant", icon: Bot, action: onRag, active: isRagActive },
   ];
 
   return (

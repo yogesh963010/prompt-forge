@@ -75,6 +75,46 @@ function parseVariableList(raw: unknown): VariableDefinition[] {
   return [];
 }
 
+function getStorageKey(systemId: number | null): string | null {
+  if (!systemId) return null;
+  return `pf_run_runtime_parent_vars_${systemId}`;
+}
+
+function loadSavedParentValues(systemId: number | null): Record<string, string> | null {
+  if (typeof window === "undefined") return null;
+  const key = getStorageKey(systemId);
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveParentValues(systemId: number | null, values: Record<string, string>): void {
+  if (typeof window === "undefined") return;
+  const key = getStorageKey(systemId);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(values));
+  } catch (e) {
+    console.warn("Failed to persist prompt system runtime values:", e);
+  }
+}
+
+function clearSavedParentValues(systemId: number | null): void {
+  if (typeof window === "undefined") return;
+  const key = getStorageKey(systemId);
+  if (!key) return;
+  try {
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.warn("Failed to clear saved runtime values:", e);
+  }
+}
+
 export function PromptRunModal({
   open,
   onOpenChange,
@@ -187,10 +227,13 @@ export function PromptRunModal({
       setRuntimePreviousOutput("");
       setRuntimeUserInput("");
 
-      // Pre-fill parent variables with defaults
+      // Pre-fill parent variables with saved values if available, otherwise defaults
+      const savedParent = loadSavedParentValues(promptSystemId);
       const initialParent: Record<string, string> = {};
       configuredParentVars.forEach((v) => {
-        if (v.default !== undefined && v.default !== null && String(v.default).trim() !== "") {
+        if (savedParent && savedParent[v.name] !== undefined && savedParent[v.name] !== null) {
+          initialParent[v.name] = String(savedParent[v.name]);
+        } else if (v.default !== undefined && v.default !== null && String(v.default).trim() !== "") {
           initialParent[v.name] = String(v.default);
         } else {
           initialParent[v.name] = "";
@@ -199,7 +242,7 @@ export function PromptRunModal({
       setRuntimeParentValues(initialParent);
       setValidationErrors({});
     }
-  }, [open, configuredParentVars]);
+  }, [open, promptSystemId, configuredParentVars]);
 
   // Pre-fill module variables with defaults when selected module changes
   useEffect(() => {
@@ -240,6 +283,29 @@ export function PromptRunModal({
         return next;
       });
     }
+  };
+
+  // Reset parent system variables to defaults and clear saved storage
+  const handleResetParentValues = () => {
+    clearSavedParentValues(promptSystemId);
+    const resetParent: Record<string, string> = {};
+    configuredParentVars.forEach((v) => {
+      if (v.default !== undefined && v.default !== null && String(v.default).trim() !== "") {
+        resetParent[v.name] = String(v.default);
+      } else {
+        resetParent[v.name] = "";
+      }
+    });
+    setRuntimeParentValues(resetParent);
+    setValidationErrors((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith("parent_")) {
+          delete next[key];
+        }
+      });
+      return next;
+    });
   };
 
   // Validate Step 1 client-side
@@ -363,6 +429,11 @@ export function PromptRunModal({
         previous_module_output:
           hasPreviousOutputContext && runtimePreviousOutput ? runtimePreviousOutput : undefined,
       });
+
+      // Save entered Prompt System variable values on successful run for automatic pre-fill
+      if (hasParentVariablesContext && promptSystemId) {
+        saveParentValues(promptSystemId, runtimeParentValues);
+      }
 
       setResolvedPrompt(res.resolved_prompt);
       setEditedPrompt(res.resolved_prompt);
@@ -659,9 +730,19 @@ export function PromptRunModal({
                         Prompt System Variables ({configuredParentVars.length})
                       </h3>
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
-                      Parent system variables required by configuration
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResetParentValues}
+                        className="h-6 px-2 text-[11px] font-normal text-muted-foreground hover:text-foreground hover:bg-muted/60 flex items-center gap-1"
+                        title="Clear saved values and reset to defaults"
+                      >
+                        <RotateCcw className="size-3" />
+                        <span>↻ Refresh Values</span>
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-1">
