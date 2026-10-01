@@ -29,34 +29,34 @@ export interface AssistantContext {
 
 export const conversationsService = {
   async createConversation(data: { title?: string; prompt_system_id?: number; module_id?: number }): Promise<Conversation> {
-    return apiRequest<Conversation>("/api/conversations", { method: "POST", body: JSON.stringify(data) });
+    return apiRequest<Conversation>("/conversations", { method: "POST", body: JSON.stringify(data) });
   },
 
   async getConversations(): Promise<Conversation[]> {
-    return apiRequest<Conversation[]>("/api/conversations", { method: "GET" });
+    return apiRequest<Conversation[]>("/conversations", { method: "GET" });
   },
 
   async getConversation(id: number): Promise<Conversation> {
-    return apiRequest<Conversation>(`/api/conversations/${id}`, { method: "GET" });
+    return apiRequest<Conversation>(`/conversations/${id}`, { method: "GET" });
   },
 
   async deleteConversation(id: number): Promise<void> {
-    await apiRequest(`/api/conversations/${id}`, { method: "DELETE" });
+    await apiRequest(`/conversations/${id}`, { method: "DELETE" });
   },
 
   async getMessages(conversationId: number): Promise<Message[]> {
-    return apiRequest<Message[]>(`/api/conversations/${conversationId}/messages`, { method: "GET" });
+    return apiRequest<Message[]>(`/conversations/${conversationId}/messages`, { method: "GET" });
   },
 
   async createMessage(conversationId: number, role: string, content: string): Promise<Message> {
-    return apiRequest<Message>(`/api/conversations/${conversationId}/messages`, {
+    return apiRequest<Message>(`/conversations/${conversationId}/messages`, {
       method: "POST",
       body: JSON.stringify({ role, content }),
     });
   },
 
   async getAssistantContext(assistantId: number, conversationId?: number): Promise<AssistantContext> {
-    let url = `/api/assistants/${assistantId}/context`;
+    let url = `/assistants/${assistantId}/context`;
     if (conversationId) {
       url += `?conversation_id=${conversationId}`;
     }

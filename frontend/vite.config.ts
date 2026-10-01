@@ -47,6 +47,8 @@ export default defineConfig(async ({ command }) => {
         "/auth": { target: "http://127.0.0.1:8000", changeOrigin: true },
         "/prompt-systems": { target: "http://127.0.0.1:8000", changeOrigin: true },
         "/providers": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/conversations": { target: "http://127.0.0.1:8000", changeOrigin: true },
+        "/assistants": { target: "http://127.0.0.1:8000", changeOrigin: true },
         // For /modules and /shared: if the browser is navigating to the HTML page (Accept: text/html),
         // bypass the proxy so Vite renders the frontend React app and styles.
         "/modules": {

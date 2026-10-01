@@ -7,8 +7,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { promptSystemService, type PromptSystem, type VariableDefinition } from "@/services/promptSystemService";
 import { moduleReferenceService, type ModuleReference } from "@/services/moduleReferenceService";
 import { conversationsService, type Conversation, type Message } from "@/services/conversationsService";
+import { moduleService, type PromptModule } from "@/services/moduleService";
 import { ragApi } from "@/services/ragApi";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ModuleEditor } from "./ModuleEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ParentAssistantChatProps {
   promptSystemId: number;
@@ -51,6 +61,107 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
+  // Child Assistant Editor State
+  const [isEditingChild, setIsEditingChild] = useState(false);
+  const [childEditorMode, setChildEditorMode] = useState<"create" | "edit">("create");
+  const [editingModule, setEditingModule] = useState<PromptModule | null>(null);
+  const [editingModuleId, setEditingModuleId] = useState<number | null>(null);
+  const [childSaving, setChildSaving] = useState(false);
+  const [childSaveError, setChildSaveError] = useState<string | null>(null);
+  const [childSaveSuccess, setChildSaveSuccess] = useState(false);
+
+  // Child Assistant Delete State
+  const [deleteChildDialogOpen, setDeleteChildDialogOpen] = useState(false);
+  const [childToDelete, setChildToDelete] = useState<ModuleReference | null>(null);
+  const [childDeleting, setChildDeleting] = useState(false);
+  const [childDeleteError, setChildDeleteError] = useState<string | null>(null);
+
+  // Child Assistant Handlers
+  const handleOpenAddChild = () => {
+    setChildEditorMode("create");
+    setEditingModule(null);
+    setEditingModuleId(null);
+    setIsEditingChild(true);
+  };
+
+  const handleOpenEditChild = async (modId: number) => {
+    try {
+      const mod = await moduleService.getById(modId);
+      setEditingModule(mod);
+      setEditingModuleId(mod.id);
+      setChildEditorMode("edit");
+      setIsEditingChild(true);
+    } catch (e: any) {
+      alert("Failed to load Child Assistant details.");
+    }
+  };
+
+  const handleSaveChild = async (payload: any) => {
+    setChildSaving(true);
+    setChildSaveError(null);
+    setChildSaveSuccess(false);
+
+    try {
+      if (childEditorMode === "create") {
+        // Create new module
+        const created = await moduleService.create(payload);
+        
+        // Associate with parent system
+        await moduleReferenceService.attach(promptSystemId, {
+          module_id: created.id,
+          enabled: true,
+          input_mapping: {},
+          output_mapping: {},
+        });
+        
+        setChildSaveSuccess(true);
+        setTimeout(() => setIsEditingChild(false), 500);
+      } else if (editingModuleId) {
+        // Update existing module
+        await moduleService.update(editingModuleId, payload);
+        setChildSaveSuccess(true);
+        setTimeout(() => setIsEditingChild(false), 500);
+      }
+      
+      // Reload modules list
+      const mods = await moduleReferenceService.list(promptSystemId);
+      setModules(mods.filter((m) => m.enabled));
+    } catch (e: any) {
+      setChildSaveError(e.message || "Failed to save Child Assistant.");
+    } finally {
+      setChildSaving(false);
+    }
+  };
+
+  const handleConfirmDeleteChild = async () => {
+    if (!childToDelete) return;
+    setChildDeleting(true);
+    setChildDeleteError(null);
+    
+    try {
+      // Delete the module reference and the module itself
+      await moduleReferenceService.remove(promptSystemId, childToDelete.module_id);
+      await moduleService.delete(childToDelete.module_id);
+      
+      setDeleteChildDialogOpen(false);
+      setChildToDelete(null);
+      
+      // Reload modules list
+      const mods = await moduleReferenceService.list(promptSystemId);
+      setModules(mods.filter((m) => m.enabled));
+      
+      // If the deleted module was the active child, switch back to parent
+      if (activeType === "child" && activeChildId === childToDelete.module_id) {
+        setActiveType("parent");
+        setActiveChildId(null);
+      }
+    } catch (e: any) {
+      setChildDeleteError(e.message || "Failed to delete Child Assistant.");
+    } finally {
+      setChildDeleting(false);
+    }
+  };
+
   const loadDetails = useCallback(async () => {
     try {
       const sys = await promptSystemService.getById(promptSystemId);
@@ -59,17 +170,13 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       setVariables(Array.isArray(sys.variables) ? sys.variables : []);
       
       const initialRuntimeVars: Record<string, string> = {};
-      let hasSavedValue = false;
       if (Array.isArray(sys.variables)) {
         sys.variables.forEach(v => {
           const val = (v.default !== undefined && v.default !== null) ? String(v.default) : "";
           initialRuntimeVars[v.name] = val;
-          if (val) hasSavedValue = true;
         });
       }
       setRuntimeVars(initialRuntimeVars);
-      setIsEditingVars(!hasSavedValue); // if we have default vars, show them as text
-
 
       const mods = await moduleReferenceService.list(promptSystemId);
       setModules(mods.filter((m) => m.enabled));
@@ -137,6 +244,31 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       loadConversation();
     }
   }, [activeType, activeChildId, promptSystemId, loading]);
+
+  // Update Variables when switching active type
+  useEffect(() => {
+    if (loading) return;
+    
+    let targetVars: VariableDefinition[] = [];
+    if (activeType === "parent") {
+      targetVars = variables;
+    } else {
+      const activeModRef = modules.find(m => m.module_id === activeChildId);
+      targetVars = (activeModRef?.module_variables as VariableDefinition[]) || [];
+    }
+
+    const initialRuntimeVars: Record<string, string> = {};
+    let hasSavedValue = false;
+    
+    targetVars.forEach(v => {
+      const val = (v.default !== undefined && v.default !== null) ? String(v.default) : "";
+      initialRuntimeVars[v.name] = val;
+      if (val) hasSavedValue = true;
+    });
+
+    setRuntimeVars(initialRuntimeVars);
+    setIsEditingVars(!hasSavedValue);
+  }, [activeType, activeChildId, variables, modules, loading]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -218,7 +350,8 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         });
         setCurrentConversation(conv);
       } catch (err: any) {
-        setChatError("Failed to create conversation");
+        console.error("Failed to create conversation:", err, err.data);
+        setChatError(`Failed to create conversation: ${err.message || "Unknown error"}`);
         return;
       }
     }
@@ -242,19 +375,53 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       await conversationsService.createMessage(conv.id, "user", userMessageContent);
 
       // Construct LLM payload context
-      let promptPrefix = "";
-      if (system.instructions) {
-        promptPrefix += `[System Instructions]\n${system.instructions}\n\n`;
-      }
+      let combinedQuestion = "";
       
-      const varEntries = Object.entries(runtimeVars);
-      if (varEntries.length > 0) {
-        promptPrefix += `[Variables]\n${varEntries.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
+      if (activeType === "child" && activeChildId) {
+        // Use Context API for Child Assistants
+        const context = await conversationsService.getAssistantContext(activeChildId, conv.id);
+        
+        let promptPrefix = "";
+        if (context.parent_instructions) {
+          promptPrefix += `[Parent System Instructions]\n${context.parent_instructions}\n\n`;
+        }
+        if (context.current_child_instructions) {
+          promptPrefix += `[Child Module Instructions]\n${context.current_child_instructions}\n\n`;
+        }
+        
+        const parentVars = context.parent_context?.variables || [];
+        if (parentVars.length > 0) {
+           promptPrefix += `[Parent Variables]\n${JSON.stringify(parentVars, null, 2)}\n\n`;
+        }
+        
+        const childVars = Object.entries(runtimeVars); // Using runtimeVars for both parent/child for now
+        if (childVars.length > 0) {
+          promptPrefix += `[Child Variables]\n${childVars.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
+        }
+        
+        // Add previous conversations context
+        if (context.previous_child_context && context.previous_child_context.length > 0) {
+           promptPrefix += `[Previous Child Conversations]\n${JSON.stringify(context.previous_child_context, null, 2)}\n\n`;
+        }
+        
+        promptPrefix += `[User Message]\n`;
+        combinedQuestion = `${promptPrefix}${userMessageContent}`;
+      } else {
+        // Manual context for Parent Assistant
+        let promptPrefix = "";
+        if (system.instructions) {
+          promptPrefix += `[System Instructions]\n${system.instructions}\n\n`;
+        }
+        
+        const varEntries = Object.entries(runtimeVars);
+        if (varEntries.length > 0) {
+          promptPrefix += `[Variables]\n${varEntries.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
+        }
+
+        promptPrefix += `[User Message]\n`;
+
+        combinedQuestion = `${promptPrefix}${userMessageContent}`;
       }
-
-      promptPrefix += `[User Message]\n`;
-
-      const combinedQuestion = `${promptPrefix}${userMessageContent}`;
 
       // Call Railway RAG backend
       const response = await ragApi.askQuestion(combinedQuestion, conv.id.toString());
@@ -290,6 +457,23 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         <Button onClick={onBack} className="mt-4" variant="outline">
           Back to Library
         </Button>
+      </div>
+    );
+  }
+
+  if (isEditingChild) {
+    return (
+      <div className="h-[calc(100vh-60px)] overflow-y-auto">
+        <ModuleEditor
+          module={editingModule}
+          moduleId={editingModuleId}
+          isNew={childEditorMode === "create"}
+          saving={childSaving}
+          saveError={childSaveError}
+          saveSuccess={childSaveSuccess}
+          onSave={handleSaveChild}
+          onBack={() => setIsEditingChild(false)}
+        />
       </div>
     );
   }
@@ -348,69 +532,89 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               )}
             </div>
 
-            {variables.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-border/50">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Variables</h3>
-                  {!isEditingVars && (
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingVars(true)}>
-                      <Edit2 className="size-3" />
-                    </Button>
-                  )}
+            {(() => {
+              const activeModRef = activeType === "child" ? modules.find(m => m.module_id === activeChildId) : null;
+              const activeVariables = activeType === "parent" 
+                ? variables 
+                : (activeModRef?.module_variables as VariableDefinition[] || []);
+                
+              if (activeVariables.length === 0) return null;
+
+              return (
+                <div className="mt-4 pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {activeType === "parent" ? "Parent Variables" : "Child Variables"}
+                    </h3>
+                    {!isEditingVars && (
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingVars(true)}>
+                        <Edit2 className="size-3" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {activeVariables.map(v => (
+                      <div key={`runtime-${v.name}`} className="space-y-1">
+                        <label className="text-xs text-muted-foreground">{v.label || v.name}</label>
+                        {isEditingVars ? (
+                          <Input 
+                            value={runtimeVars[v.name] || ""} 
+                            onChange={(e) => setRuntimeVars(prev => ({ ...prev, [v.name]: e.target.value }))}
+                            className="h-7 text-xs bg-card"
+                          />
+                        ) : (
+                          <div className="text-sm font-medium text-foreground bg-muted/30 p-1.5 rounded border border-border/40 min-h-[28px] break-words">
+                            {runtimeVars[v.name] || <span className="text-muted-foreground italic text-xs">Not provided</span>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {isEditingVars && (
+                      <Button 
+                        size="sm" 
+                        variant={varsSaved ? "secondary" : "default"}
+                        className="w-full mt-2 h-7 text-xs transition-all" 
+                        disabled={varsSaved}
+                        onClick={async () => {
+                          try {
+                            const updatedVariables = activeVariables.map(v => ({
+                              ...v,
+                              default: runtimeVars[v.name] || v.default
+                            }));
+                            
+                            if (activeType === "parent") {
+                              if (!system) return;
+                              await promptSystemService.updateVariables(system.id, updatedVariables);
+                              setVariables(updatedVariables);
+                            } else {
+                              if (!activeChildId) return;
+                              await moduleService.update(activeChildId, { variables: updatedVariables });
+                              // Reload modules to update module_variables
+                              const mods = await moduleReferenceService.list(promptSystemId);
+                              setModules(mods.filter((m) => m.enabled));
+                            }
+                            
+                            setVarsSaved(true);
+                            setTimeout(() => {
+                              setVarsSaved(false);
+                              setIsEditingVars(false);
+                            }, 500);
+                          } catch (err: any) {
+                            alert(err.message || "Failed to save variables to database");
+                          }
+                        }}
+                      >
+                        {varsSaved ? (
+                          <><Check className="mr-1.5 size-3 text-success" /> Submitted</>
+                        ) : (
+                          "Submit Variables"
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  {variables.map(v => (
-                    <div key={`runtime-${v.name}`} className="space-y-1">
-                      <label className="text-xs text-muted-foreground">{v.label || v.name}</label>
-                      {isEditingVars ? (
-                        <Input 
-                          value={runtimeVars[v.name] || ""} 
-                          onChange={(e) => setRuntimeVars(prev => ({ ...prev, [v.name]: e.target.value }))}
-                          className="h-7 text-xs bg-card"
-                        />
-                      ) : (
-                        <div className="text-sm font-medium text-foreground bg-muted/30 p-1.5 rounded border border-border/40 min-h-[28px] break-words">
-                          {runtimeVars[v.name] || <span className="text-muted-foreground italic text-xs">Not provided</span>}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {isEditingVars && (
-                    <Button 
-                      size="sm" 
-                      variant={varsSaved ? "secondary" : "default"}
-                      className="w-full mt-2 h-7 text-xs transition-all" 
-                      disabled={varsSaved}
-                      onClick={async () => {
-                        if (!system) return;
-                        try {
-                          const updatedVariables = variables.map(v => ({
-                            ...v,
-                            default: runtimeVars[v.name] || v.default
-                          }));
-                          await promptSystemService.updateVariables(system.id, updatedVariables);
-                          setVariables(updatedVariables);
-                          
-                          setVarsSaved(true);
-                          setTimeout(() => {
-                            setVarsSaved(false);
-                            setIsEditingVars(false);
-                          }, 500);
-                        } catch (err: any) {
-                          alert(err.message || "Failed to save variables to database");
-                        }
-                      }}
-                    >
-                      {varsSaved ? (
-                        <><Check className="mr-1.5 size-3 text-success" /> Submitted</>
-                      ) : (
-                        "Submit Variables"
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
+              );
+            })()}
           </section>
 
           {/* Child Assistants Section */}
@@ -435,24 +639,55 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               </button>
               
               {modules.map((mod) => (
-                <button
-                  key={mod.id}
-                  onClick={() => { setActiveType("child"); setActiveChildId(mod.module_id); }}
-                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-all border ${
-                    activeType === "child" && activeChildId === mod.module_id 
-                      ? "bg-primary text-primary-foreground border-primary shadow-sm" 
-                      : "bg-card hover:bg-accent border-border/50 text-foreground opacity-60 hover:opacity-100"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Zap className="size-3.5 opacity-70" />
-                    <span className="font-medium truncate">{mod.module_name || `Module #${mod.module_id}`}</span>
+                <div key={mod.id} className="group relative flex items-center">
+                  <button
+                    onClick={() => { setActiveType("child"); setActiveChildId(mod.module_id); }}
+                    className={`flex-1 text-left rounded-lg px-3 py-2 pr-16 text-sm transition-all border ${
+                      activeType === "child" && activeChildId === mod.module_id 
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                        : "bg-card hover:bg-accent border-border/50 text-foreground opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Zap className="size-3.5 opacity-70 shrink-0" />
+                      <div className="min-w-0">
+                        <span className="font-medium truncate block">{mod.module_name || `Module #${mod.module_id}`}</span>
+                      </div>
+                    </div>
+                  </button>
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 h-7 w-7 text-muted-foreground hover:text-foreground bg-background/50 backdrop-blur"
+                      onClick={() => handleOpenEditChild(mod.module_id)}
+                      title="Edit Child Assistant"
+                    >
+                      <Edit2 className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 h-7 w-7 text-muted-foreground hover:text-destructive bg-background/50 backdrop-blur"
+                      onClick={() => {
+                        setChildToDelete(mod);
+                        setDeleteChildDialogOpen(true);
+                      }}
+                      title="Delete Child Assistant"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
                   </div>
-                </button>
+                </div>
               ))}
-              {modules.length === 0 && (
-                <div className="text-xs text-muted-foreground italic px-1">No child assistants configured.</div>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2 border-dashed h-8 text-xs text-muted-foreground"
+                onClick={handleOpenAddChild}
+              >
+                <Plus className="mr-1.5 size-3" /> Add Child Assistant
+              </Button>
             </div>
           </section>
 
@@ -598,12 +833,12 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="w-full rounded-full border border-border bg-card pl-5 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm disabled:opacity-50"
-              disabled={sending || activeType === "child"}
+              disabled={sending}
             />
             <Button
               type="submit"
               size="icon"
-              disabled={!input.trim() || sending || activeType === "child"}
+              disabled={!input.trim() || sending}
               className="absolute right-2 size-9 rounded-full transition-all"
             >
               <Send className="size-4" />
@@ -611,7 +846,47 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           </form>
         </div>
       </div>
+      <Dialog open={deleteChildDialogOpen} onOpenChange={(open) => !childDeleting && setDeleteChildDialogOpen(open)}>
+        <DialogContent className="border-border bg-popover sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Delete Child Assistant</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <span className="font-semibold text-foreground">"{childToDelete?.module_name || 'this module'}"</span>? 
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
 
+          {childDeleteError && (
+            <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{childDeleteError}</span>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:space-x-0 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteChildDialogOpen(false)}
+              disabled={childDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDeleteChild}
+              disabled={childDeleting}
+            >
+              {childDeleting ? (
+                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="mr-1.5 size-3.5" /> Delete</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

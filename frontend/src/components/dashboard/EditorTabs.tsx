@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea";
 import type { VariableDefinition } from "@/services";
 import { PromptTestsSection } from "./PromptTestsSection";
 import { PromptVersionsSection } from "./PromptVersionsSection";
-import { SystemModulesSection } from "./SystemModulesSection";
 
 export function Panel({
   title,
@@ -295,28 +294,6 @@ export function InstructionsTab({
           )}
         </Button>
       </div>
-    </Panel>
-  );
-}
-
-// Tab: Modules
-export function ModulesTab({
-  promptSystemId,
-  onNavigateToModules,
-}: {
-  editModules?: unknown[];
-  promptSystemId?: number | null;
-  onNavigateToModules?: () => void;
-}) {
-  return (
-    <Panel
-      title="Prompt Modules"
-      description="Attach and configure reusable prompt modules with defined boundary inputs and outputs."
-    >
-      <SystemModulesSection
-        promptSystemId={promptSystemId ?? null}
-        onNavigateToModules={onNavigateToModules}
-      />
     </Panel>
   );
 }

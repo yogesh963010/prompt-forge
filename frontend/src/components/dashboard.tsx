@@ -508,8 +508,9 @@ export function PromptForgeDashboard({
       setCreateDescription("");
       setCreateInstructions("");
 
-      // Stay on the home page to show the newly created Prompt System
-      setScreen("library");
+      // Open the Parent Assistant experience for the newly created Prompt System
+      setSystemToRun(created);
+      setScreen("parent_assistant");
     } catch (err: unknown) {
       const apiErr = err as { status?: number; message?: string };
       if (apiErr?.status === 401) {

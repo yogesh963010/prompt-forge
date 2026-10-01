@@ -19,7 +19,6 @@ import type {
 import {
   ExamplesTab,
   InstructionsTab,
-  ModulesTab,
   OutputTab,
   OverviewTab,
   TestsTab,
@@ -269,14 +268,6 @@ export function PromptEditor({
               onAddVariable={onAddVariable}
               onEditVariable={onEditVariable}
               onDeleteVariable={onDeleteVariable}
-            />
-          )}
-
-          {activeTab === "Modules" && (
-            <ModulesTab
-              editModules={editModules}
-              promptSystemId={selectedSystemId}
-              onNavigateToModules={onNavigateToModules}
             />
           )}
 
