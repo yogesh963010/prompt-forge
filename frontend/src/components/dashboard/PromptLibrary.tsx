@@ -38,13 +38,17 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onR
 
   return (
     <div
-      onClick={onOpen}
+      onClick={onRun || onOpen}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          onOpen();
+          if (onRun) {
+            onRun();
+          } else {
+            onOpen();
+          }
         }
       }}
       className="group relative cursor-pointer rounded-lg bg-card/55 p-4 text-left ring-1 ring-border/60 transition hover:-translate-y-0.5 hover:bg-card/75 hover:shadow-md"

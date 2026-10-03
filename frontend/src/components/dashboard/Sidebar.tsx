@@ -7,7 +7,7 @@ interface SidebarProps {
   systemCount: number;
   moduleCount?: number;
   historyCount?: number;
-  currentScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag";
+  currentScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "parent_assistant";
   onClose: () => void;
   onHome: () => void;
   onEditor: () => void;

@@ -2,10 +2,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.session import get_db
+from ..database import get_db
 from ..schemas.conversation import ConversationCreate, ConversationRead, MessageCreate, MessageRead
 from ..services.conversation_service import conversation_service
-from .auth import get_current_user
+from ..dependencies.auth import get_current_user
 from ..models.user import User
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])

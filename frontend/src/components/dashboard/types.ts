@@ -2,7 +2,6 @@ export type Tab =
   | "Overview"
   | "Instructions"
   | "Variables"
-  | "Modules"
   | "Examples"
   | "Output"
   | "Tests"
@@ -13,7 +12,6 @@ export const tabs: Tab[] = [
   "Overview",
   "Instructions",
   "Variables",
-  "Modules",
   "Examples",
   "Output",
   "Tests",

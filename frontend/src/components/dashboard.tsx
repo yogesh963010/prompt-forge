@@ -35,7 +35,7 @@ import {
 } from "./dashboard/PromptModals";
 import { PromptPreviewDialog } from "./dashboard/PromptPreview";
 import { PromptRunModal } from "./dashboard/PromptRunModal";
-import { AssistantsWorkspace } from "./dashboard/AssistantsWorkspace";
+import { ParentAssistantChat } from "./dashboard/ParentAssistantChat";
 import { Sidebar } from "./dashboard/Sidebar";
 import type { Tab } from "./dashboard/types";
 import {
@@ -48,12 +48,12 @@ export function PromptForgeDashboard({
   initialScreen = "library",
   initialHistoryId = null,
 }: {
-  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "assistants";
+  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "parent_assistant";
   initialHistoryId?: number | null;
 } = {}) {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<
-    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "assistants"
+    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "parent_assistant"
   >(initialScreen);
   const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(initialHistoryId);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
@@ -508,8 +508,9 @@ export function PromptForgeDashboard({
       setCreateDescription("");
       setCreateInstructions("");
 
-      // Stay on the home page to show the newly created Prompt System
-      setScreen("library");
+      // Open the Parent Assistant experience for the newly created Prompt System
+      setSystemToRun(created);
+      setScreen("parent_assistant");
     } catch (err: unknown) {
       const apiErr = err as { status?: number; message?: string };
       if (apiErr?.status === 401) {
@@ -1047,7 +1048,10 @@ export function PromptForgeDashboard({
               onDelete={promptDelete}
               onArchive={handleArchivePromptSystem}
               onUnarchive={handleUnarchivePromptSystem}
-              onRun={handleRunFromLibrary}
+              onRun={(system) => {
+                setSystemToRun({ id: system.id, name: system.name, variables: system.variables });
+                setScreen("parent_assistant");
+              }}
             />
           )}
 
@@ -1146,7 +1150,9 @@ export function PromptForgeDashboard({
 
           {screen === "rag" && <RagAssistant />}
           
-          {screen === "assistants" && <AssistantsWorkspace />}
+          {screen === "parent_assistant" && systemToRun && (
+            <ParentAssistantChat promptSystemId={systemToRun.id} onBack={() => setScreen("library")} />
+          )}
         </main>
       </div>
 
