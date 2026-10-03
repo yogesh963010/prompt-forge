@@ -35,6 +35,7 @@ import {
 } from "./dashboard/PromptModals";
 import { PromptPreviewDialog } from "./dashboard/PromptPreview";
 import { PromptRunModal } from "./dashboard/PromptRunModal";
+import { AssistantsWorkspace } from "./dashboard/AssistantsWorkspace";
 import { Sidebar } from "./dashboard/Sidebar";
 import type { Tab } from "./dashboard/types";
 import {
@@ -47,12 +48,12 @@ export function PromptForgeDashboard({
   initialScreen = "library",
   initialHistoryId = null,
 }: {
-  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag";
+  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "assistants";
   initialHistoryId?: number | null;
 } = {}) {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<
-    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag"
+    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "assistants"
   >(initialScreen);
   const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(initialHistoryId);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
@@ -507,8 +508,8 @@ export function PromptForgeDashboard({
       setCreateDescription("");
       setCreateInstructions("");
 
-      // Open newly created Prompt System in editor
-      openEditor(created.id);
+      // Stay on the home page to show the newly created Prompt System
+      setScreen("library");
     } catch (err: unknown) {
       const apiErr = err as { status?: number; message?: string };
       if (apiErr?.status === 401) {
@@ -865,6 +866,10 @@ export function PromptForgeDashboard({
             setScreen("rag");
             setMobileNav(false);
           }}
+          onAssistants={() => {
+            setScreen("assistants");
+            setMobileNav(false);
+          }}
           onLogout={handleLogout}
         />
         <main className="min-w-0 flex-1">
@@ -886,6 +891,13 @@ export function PromptForgeDashboard({
                     className="cursor-pointer font-medium text-foreground hover:text-foreground"
                   >
                     AI Assistant
+                  </button>
+                ) : screen === "assistants" ? (
+                  <button
+                    onClick={() => setScreen("assistants")}
+                    className="cursor-pointer font-medium text-foreground hover:text-foreground"
+                  >
+                    Assistants
                   </button>
                 ) : screen === "history" || screen === "history-detail" ? (
                   <>
@@ -1133,6 +1145,8 @@ export function PromptForgeDashboard({
           )}
 
           {screen === "rag" && <RagAssistant />}
+          
+          {screen === "assistants" && <AssistantsWorkspace />}
         </main>
       </div>
 

@@ -14,6 +14,7 @@ interface SidebarProps {
   onModules?: () => void;
   onHistory?: () => void;
   onRag?: () => void;
+  onAssistants?: () => void;
   onLogout: () => void;
 }
 
@@ -30,17 +31,19 @@ export function Sidebar({
   onModules,
   onHistory,
   onRag,
+  onAssistants,
   onLogout,
 }: SidebarProps) {
   const isPromptSystemsActive = currentScreen === "library" || currentScreen === "editor";
   const isModulesActive = currentScreen === "modules" || currentScreen === "module-editor";
   const isHistoryActive = currentScreen === "history" || currentScreen === "history-detail";
   const isRagActive = currentScreen === "rag";
+  const isAssistantsActive = currentScreen === "assistants";
 
   const links = [
-    { label: "Home", icon: Home, action: onHome, active: currentScreen === "library" },
-    { label: "Prompt Systems", icon: BookOpen, action: onEditor, active: isPromptSystemsActive, count: systemCount },
+    { label: "Home", icon: Home, action: onHome, active: currentScreen === "library" || currentScreen === "editor", count: systemCount },
     { label: "Modules", icon: Boxes, action: onModules, active: isModulesActive, count: moduleCount },
+    { label: "Assistants", icon: Bot, action: onAssistants, active: isAssistantsActive },
     { label: "History", icon: History, action: onHistory, active: isHistoryActive, count: historyCount },
     { label: "AI Assistant", icon: Bot, action: onRag, active: isRagActive },
   ];
