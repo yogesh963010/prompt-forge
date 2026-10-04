@@ -117,7 +117,7 @@ async function ragFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 
   const urlsToTry: string[] = [];
 
-  // In browser, cleanEndpoint (/health, /status, /ask, etc.) is directly proxied by Vite to Railway
+  // In browser, cleanEndpoint (/health, /status, /ask, etc.) is directly proxied by Vite to local FastAPI
   if (typeof window !== "undefined") {
     urlsToTry.push(cleanEndpoint);
     if (RAG_API_BASE_URL && !RAG_API_BASE_URL.startsWith("/")) {
@@ -126,21 +126,26 @@ async function ragFetch<T>(endpoint: string, options: RequestInit = {}): Promise
         urlsToTry.push(`${cleanBase}${cleanEndpoint}`);
       }
     }
-    if (!urlsToTry.includes(`/rag-api${cleanEndpoint}`)) {
-      urlsToTry.push(`/rag-api${cleanEndpoint}`);
-    }
   } else {
     if (RAG_API_BASE_URL) {
       const cleanBase = RAG_API_BASE_URL.replace(/\/+$/, "");
       urlsToTry.push(`${cleanBase}${cleanEndpoint}`);
     } else {
-      urlsToTry.push(`https://ai-study-assistant.up.railway.app${cleanEndpoint}`);
+      urlsToTry.push(`http://127.0.0.1:8000${cleanEndpoint}`);
     }
   }
 
   const headers = new Headers(options.headers || {});
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
+  }
+
+  // Attach PromptForge auth token if available in browser
+  if (!headers.has("Authorization") && typeof window !== "undefined") {
+    const token = localStorage.getItem("pf-token");
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
   }
 
   let lastError: unknown = null;
@@ -212,9 +217,15 @@ export const ragApi = {
   },
 
   /**
-   * Send a question using the conversational endpoint with session memory
+   * Send a question using the integrated local RAG endpoint
    */
-  async askQuestion(question: string, sessionId: string): Promise<RagChatResponse> {
+  async askQuestion(
+    question: string,
+    sessionId?: string,
+    conversationId?: number,
+    promptSystemId?: number,
+    moduleId?: number
+  ): Promise<RagChatResponse> {
     return ragFetch<RagChatResponse>("/ask", {
       method: "POST",
       headers: {
@@ -222,7 +233,10 @@ export const ragApi = {
       },
       body: JSON.stringify({
         question: question.trim(),
-        session_id: sessionId,
+        session_id: sessionId || undefined,
+        conversation_id: conversationId,
+        prompt_system_id: promptSystemId,
+        module_id: moduleId,
       }),
     });
   },

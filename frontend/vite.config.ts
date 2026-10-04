@@ -87,42 +87,35 @@ export default defineConfig(async ({ command }) => {
             }
           },
         },
-        // RAG Assistant endpoints -> Railway RAG Backend
+        // Integrated PromptForge RAG endpoints -> PromptForge Local Backend
         "/rag-api": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: process.env.VITE_API_URL || "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
           rewrite: (path) => path.replace(/^\/rag-api/, ""),
         },
         "/health": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
         },
         "/status": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
         },
         "/upload": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
         },
         "/documents": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
         },
         "/chat": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
         },
         "/ask": {
-          target: process.env.VITE_RAG_API_URL || "https://ai-study-assistant.up.railway.app",
+          target: "http://127.0.0.1:8000",
           changeOrigin: true,
-          secure: true,
         },
       },
     },

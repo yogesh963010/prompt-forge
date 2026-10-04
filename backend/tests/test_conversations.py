@@ -1,8 +1,8 @@
 import pytest
 from httpx import AsyncClient
 from typing import AsyncGenerator
-from ..app.models.prompt_system import PromptSystem
-from ..app.models.prompt_module import PromptModule
+from backend.app.models.prompt_system import PromptSystem
+from backend.app.models.prompt_module import PromptModule
 
 pytestmark = pytest.mark.asyncio
 

@@ -20,6 +20,8 @@ from .routes.sharing import router as sharing_router
 from .routes.history import router as history_router
 from .routes.conversations import router as conversations_router
 from .routes.assistants import router as assistants_router
+from .routes.documents import router as documents_router
+from .routes.rag import router as rag_router
 
 app = FastAPI(
     title="PromptForge API",
@@ -52,6 +54,10 @@ app.include_router(history_router)
 app.include_router(history_router, prefix="/api")
 app.include_router(conversations_router)
 app.include_router(assistants_router)
+app.include_router(documents_router)
+app.include_router(documents_router, prefix="/api")
+app.include_router(rag_router)
+app.include_router(rag_router, prefix="/api")
 
 @app.get("/", tags=["General"])
 def read_root():
