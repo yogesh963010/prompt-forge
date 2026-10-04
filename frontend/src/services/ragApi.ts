@@ -224,7 +224,8 @@ export const ragApi = {
     sessionId?: string,
     conversationId?: number,
     promptSystemId?: number,
-    moduleId?: number
+    moduleId?: number,
+    variables?: Record<string, any>
   ): Promise<RagChatResponse> {
     return ragFetch<RagChatResponse>("/ask", {
       method: "POST",
@@ -237,6 +238,7 @@ export const ragApi = {
         conversation_id: conversationId,
         prompt_system_id: promptSystemId,
         module_id: moduleId,
+        variables: variables || undefined,
       }),
     });
   },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,23 +140,44 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     setChildDeleteError(null);
     
     try {
-      // Delete the module reference and the module itself
-      await moduleReferenceService.remove(promptSystemId, childToDelete.module_id);
-      await moduleService.delete(childToDelete.module_id);
+      const deletedModuleId = childToDelete.module_id;
+      const referenceId = childToDelete.id;
+
+      // 1. If the deleted module was currently active in chat, reset to parent first
+      if (activeType === "child" && activeChildId === deletedModuleId) {
+        setActiveType("parent");
+        setActiveChildId(null);
+        setMessages([]);
+        setCurrentConversation(null);
+        setDocuments([]);
+      }
+
+      // 2. Detach the module reference using referenceId (childToDelete.id)
+      if (referenceId) {
+        try {
+          await moduleReferenceService.remove(promptSystemId, referenceId);
+        } catch (refErr) {
+          console.warn("Module reference already detached or not found:", refErr);
+        }
+      }
+
+      // 3. Delete the underlying module if it exists
+      if (deletedModuleId) {
+        try {
+          await moduleService.delete(deletedModuleId);
+        } catch (modErr) {
+          console.warn("Underlying module already deleted or not found:", modErr);
+        }
+      }
       
       setDeleteChildDialogOpen(false);
       setChildToDelete(null);
       
-      // Reload modules list
+      // 4. Reload modules list for this prompt system
       const mods = await moduleReferenceService.list(promptSystemId);
       setModules(mods.filter((m) => m.enabled));
-      
-      // If the deleted module was the active child, switch back to parent
-      if (activeType === "child" && activeChildId === childToDelete.module_id) {
-        setActiveType("parent");
-        setActiveChildId(null);
-      }
     } catch (e: any) {
+      console.error("Failed to delete Child Assistant:", e);
       setChildDeleteError(e.message || "Failed to delete Child Assistant.");
     } finally {
       setChildDeleting(false);
@@ -463,7 +484,8 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         scopedSessionId,
         conv.id,
         promptSystemId,
-        activeType === "child" && activeChildId ? activeChildId : undefined
+        activeType === "child" && activeChildId ? activeChildId : undefined,
+        runtimeVars
       );
       
       const assistantMsgContent = response.answer;

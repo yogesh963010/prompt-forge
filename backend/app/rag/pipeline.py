@@ -28,6 +28,7 @@ from ..models.prompt_system import PromptSystem
 from ..models.prompt_module import PromptModule
 from ..models.conversation import Conversation, Message
 from ..services.conversation_service import conversation_service
+from ..services.runtime_context_builder import build_runtime_context
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +39,11 @@ async def run_promptforge_rag(
     question: str,
     module_id: Optional[int] = None,
     conversation_id: Optional[int] = None,
+    runtime_variables: Optional[Dict[str, Any]] = None,
     db: Optional[AsyncSession] = None,
 ) -> Dict[str, Any]:
     """
-    Run conversational RAG pipeline inside PromptForge.
+    Run conversational RAG pipeline inside PromptForge with deterministic runtime context building.
 
     Parameters
     ----------
@@ -55,13 +57,15 @@ async def run_promptforge_rag(
         Child Assistant Module ID (None for Parent Assistant).
     conversation_id : Optional[int]
         Current PromptForge Conversation ID.
+    runtime_variables : Optional[Dict[str, Any]]
+        Current runtime variable values provided by user.
     db : Optional[AsyncSession]
-        Database session for fetching instructions and history.
+        Database session for fetching instructions, variables, and history.
 
     Returns
     -------
     dict
-        {"answer": str, "sources": list}
+        {"answer": str, "sources": list, "context": dict}
     """
     if not question or not question.strip():
         raise ValueError("Question cannot be empty.")
@@ -103,56 +107,39 @@ async def run_promptforge_rag(
         question=standalone_question,
     )
 
-    # 4. Fetch Prompt System & Child Module instructions and variables
-    system_instructions = None
-    child_instructions = None
-    merged_variables: Dict[str, Any] = {}
-
+    # 4. Deterministic Runtime Context Construction
+    runtime_ctx = None
     if db:
         try:
-            # Prompt System
-            sys_stmt = select(PromptSystem).where(
-                PromptSystem.id == prompt_system_id,
-                PromptSystem.owner_id == user_id,
+            runtime_ctx = await build_runtime_context(
+                db=db,
+                user_id=user_id,
+                prompt_system_id=prompt_system_id,
+                question=clean_question,
+                module_id=module_id,
+                conversation_id=conversation_id,
+                runtime_variables=runtime_variables,
+                retrieved_documents=retrieved_docs,
             )
-            system = (await db.execute(sys_stmt)).scalar_one_or_none()
-            if system:
-                system_instructions = system.instructions
-                if isinstance(system.variables, dict):
-                    merged_variables.update(system.variables)
-                elif isinstance(system.variables, list):
-                    for var in system.variables:
-                        if isinstance(var, dict) and "name" in var:
-                            merged_variables[var["name"]] = var.get("default_value", "")
-
-            # Child Module
-            if module_id is not None:
-                mod_stmt = select(PromptModule).where(
-                    PromptModule.id == module_id,
-                    PromptModule.owner_id == user_id,
-                )
-                module = (await db.execute(mod_stmt)).scalar_one_or_none()
-                if module:
-                    child_instructions = module.instructions
-                    if isinstance(module.variables, dict):
-                        merged_variables.update(module.variables)
-                    elif isinstance(module.variables, list):
-                        for var in module.variables:
-                            if isinstance(var, dict) and "name" in var:
-                                merged_variables[var["name"]] = var.get("default_value", "")
-        except Exception as e:
-            logger.warning(f"Failed to load system/module metadata: {e}")
+        except Exception as ctx_err:
+            logger.error(f"Failed to build runtime context: {ctx_err}", exc_info=True)
 
     # 5. Generate Answer via LLM
-    answer = generate_answer(
-        llm_client=llm,
-        question=clean_question,
-        documents=retrieved_docs if retrieved_docs else None,
-        conversation_history=history_messages,
-        system_instructions=system_instructions,
-        child_instructions=child_instructions,
-        variables=merged_variables,
-    )
+    if runtime_ctx:
+        answer = generate_answer(
+            llm_client=llm,
+            question=clean_question,
+            custom_system_prompt=runtime_ctx.system_prompt,
+            custom_messages=runtime_ctx.messages,
+        )
+    else:
+        # Fallback if db is not provided
+        answer = generate_answer(
+            llm_client=llm,
+            question=clean_question,
+            documents=retrieved_docs if retrieved_docs else None,
+            conversation_history=history_messages,
+        )
 
     # 6. Extract Sources
     sources = get_sources_from_documents(retrieved_docs)
@@ -160,4 +147,5 @@ async def run_promptforge_rag(
     return {
         "answer": answer,
         "sources": sources,
+        "context": runtime_ctx.to_dict() if runtime_ctx else None,
     }

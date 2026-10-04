@@ -140,37 +140,46 @@ def generate_answer(
     system_instructions: Optional[str] = None,
     child_instructions: Optional[str] = None,
     variables: Optional[Dict[str, Any]] = None,
+    custom_system_prompt: Optional[str] = None,
+    custom_messages: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """
     Generate an answer using LLM with conversation history and optional document context.
+    Supports deterministic custom_system_prompt or pre-assembled custom_messages.
     """
-    if not question or not question.strip():
-        raise ValueError("Question cannot be empty.")
+    if custom_messages:
+        messages = list(custom_messages)
+    else:
+        if not question or not question.strip():
+            raise ValueError("Question cannot be empty.")
 
-    system_content = build_system_prompt(
-        system_instructions=system_instructions,
-        child_instructions=child_instructions,
-        variables=variables,
-        documents=documents,
-    )
+        if custom_system_prompt:
+            system_content = custom_system_prompt
+        else:
+            system_content = build_system_prompt(
+                system_instructions=system_instructions,
+                child_instructions=child_instructions,
+                variables=variables,
+                documents=documents,
+            )
 
-    messages = [{"role": "system", "content": system_content}]
+        messages = [{"role": "system", "content": system_content}]
 
-    # Append recent conversation history
-    if conversation_history:
-        for msg in conversation_history:
-            if isinstance(msg, dict):
-                role = msg.get("role", "user")
-                content = msg.get("content", "")
-            else:
-                role = getattr(msg, "role", "user")
-                content = getattr(msg, "content", "")
+        # Append recent conversation history
+        if conversation_history:
+            for msg in conversation_history:
+                if isinstance(msg, dict):
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                else:
+                    role = getattr(msg, "role", "user")
+                    content = getattr(msg, "content", "")
 
-            if role in ("user", "assistant") and content and content.strip():
-                messages.append({"role": role, "content": content.strip()})
+                if role in ("user", "assistant") and content and content.strip():
+                    messages.append({"role": role, "content": content.strip()})
 
-    # Append current user question
-    messages.append({"role": "user", "content": question.strip()})
+        # Append current user question
+        messages.append({"role": "user", "content": question.strip()})
 
     model_name = os.getenv("LLM_MODEL", "openai/gpt-oss-20b")
     # Clean model prefix if present
