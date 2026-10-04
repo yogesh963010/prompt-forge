@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  ArrowLeft,
   Boxes,
   Check,
   ChevronRight,
@@ -230,6 +231,7 @@ interface ModuleLibraryProps {
   onOpenModule: (id: number) => void;
   onEditModule: (id: number) => void;
   onDeleteModule: (module: PromptModule) => void;
+  onBack?: () => void;
 }
 
 export function ModuleLibrary({
@@ -241,6 +243,7 @@ export function ModuleLibrary({
   onOpenModule,
   onEditModule,
   onDeleteModule,
+  onBack,
 }: ModuleLibraryProps) {
   const [activeTab, setActiveTab] = useState<"all" | "custom" | "predefined">("all");
   const [search, setSearch] = useState("");
@@ -320,6 +323,21 @@ export function ModuleLibrary({
 
   return (
     <div className="pf-fade mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      {/* Back button */}
+      {onBack && (
+        <div className="-mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onBack}
+          >
+            <ArrowLeft className="size-4" />
+            <span>Back to Prompt Systems</span>
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-5">
         <div>

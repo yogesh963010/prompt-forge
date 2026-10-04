@@ -1,4 +1,4 @@
-import { BookOpen, Bot, Boxes, History, Home, LogOut, X } from "lucide-react";
+import { BookOpen, Bot, Boxes, Home, LogOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SidebarProps {
@@ -6,15 +6,12 @@ interface SidebarProps {
   user: { email?: string; name?: string } | null;
   systemCount: number;
   moduleCount?: number;
-  historyCount?: number;
-  currentScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "parent_assistant";
+  currentScreen?: "library" | "editor" | "modules" | "module-editor" | "rag" | "parent_assistant";
   onClose: () => void;
   onHome: () => void;
   onEditor: () => void;
   onModules?: () => void;
-  onHistory?: () => void;
   onRag?: () => void;
-  onAssistants?: () => void;
   onLogout: () => void;
 }
 
@@ -23,28 +20,21 @@ export function Sidebar({
   user,
   systemCount,
   moduleCount = 0,
-  historyCount = 0,
   currentScreen = "library",
   onClose,
   onHome,
   onEditor,
   onModules,
-  onHistory,
   onRag,
-  onAssistants,
   onLogout,
 }: SidebarProps) {
   const isPromptSystemsActive = currentScreen === "library" || currentScreen === "editor";
   const isModulesActive = currentScreen === "modules" || currentScreen === "module-editor";
-  const isHistoryActive = currentScreen === "history" || currentScreen === "history-detail";
   const isRagActive = currentScreen === "rag";
-  const isAssistantsActive = currentScreen === "assistants";
 
   const links = [
     { label: "Home", icon: Home, action: onHome, active: currentScreen === "library" || currentScreen === "editor", count: systemCount },
     { label: "Modules", icon: Boxes, action: onModules, active: isModulesActive, count: moduleCount },
-    { label: "Assistants", icon: Bot, action: onAssistants, active: isAssistantsActive },
-    { label: "History", icon: History, action: onHistory, active: isHistoryActive, count: historyCount },
     { label: "AI Assistant", icon: Bot, action: onRag, active: isRagActive },
   ];
 

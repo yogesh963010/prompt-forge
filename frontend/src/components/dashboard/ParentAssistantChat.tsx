@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Plus, Send, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,22 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
 
   // Runtime Variables
   const [runtimeVars, setRuntimeVars] = useState<Record<string, string>>({});
+
+  // Full Screen and Sidebar State
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+
+  // Exit fullscreen on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullScreen) {
+        setIsFullScreen(false);
+        setShowSidebar(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullScreen]);
   const [varsSaved, setVarsSaved] = useState(false);
   const [isEditingVars, setIsEditingVars] = useState(true);
 
@@ -541,9 +557,14 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   }
 
   return (
-    <div className="flex h-[calc(100vh-60px)] flex-col md:flex-row bg-background">
+    <div className={`flex flex-col md:flex-row bg-background ${
+      isFullScreen
+        ? "fixed inset-0 z-50 h-screen w-screen"
+        : "h-[calc(100vh-60px)]"
+    }`}>
       {/* LEFT PANEL: Details & Documents */}
-      <aside className="w-full border-r border-border/60 bg-muted/10 md:w-80 flex flex-col overflow-y-auto">
+      {showSidebar && (
+        <aside className="w-full border-r border-border/60 bg-muted/10 md:w-80 flex flex-col overflow-y-auto shrink-0">
         <div className="p-4 border-b border-border/60 sticky top-0 bg-background/95 backdrop-blur z-10">
           <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 mb-2 text-muted-foreground w-full justify-start hover:bg-muted/50">
             <ArrowLeft className="mr-2 size-4" />
@@ -551,7 +572,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           </Button>
           <h2 className="text-xl font-bold tracking-tight text-foreground">{system.name}</h2>
           <span className="inline-flex mt-2 items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors bg-primary/10 text-primary border-primary/20">
-            Parent Assistant
+            Assistant
           </span>
         </div>
 
@@ -679,10 +700,10 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             })()}
           </section>
 
-          {/* Child Assistants Section */}
+          {/* Sub Assistants Section */}
           <section>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center justify-between">
-              Child Assistants
+              Sub Assistants
               <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[9px]">{modules.length}</span>
             </h3>
             <div className="space-y-1.5">
@@ -696,7 +717,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               >
                 <div className="flex items-center gap-2">
                   <Bot className="size-4" />
-                  <span className="font-medium truncate">{system.name} (Parent)</span>
+                  <span className="font-medium truncate">{system.name} (Assistant)</span>
                 </div>
               </button>
               
@@ -723,7 +744,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                       size="icon"
                       className="size-7 h-7 w-7 text-muted-foreground hover:text-foreground bg-background/50 backdrop-blur"
                       onClick={() => handleOpenEditChild(mod.module_id)}
-                      title="Edit Child Assistant"
+                      title="Edit Sub Assistant"
                     >
                       <Edit2 className="size-3.5" />
                     </Button>
@@ -735,7 +756,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                         setChildToDelete(mod);
                         setDeleteChildDialogOpen(true);
                       }}
-                      title="Delete Child Assistant"
+                      title="Delete Sub Assistant"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
@@ -748,7 +769,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                 className="w-full mt-2 border-dashed h-8 text-xs text-muted-foreground"
                 onClick={handleOpenAddChild}
               >
-                <Plus className="mr-1.5 size-3" /> Add Child Assistant
+                <Plus className="mr-1.5 size-3" /> Add Sub Assistant
               </Button>
             </div>
           </section>
@@ -795,7 +816,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                         <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
                           <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                           <span>•</span>
-                          <span>{doc.module_id ? "Child Assistant" : "Parent Assistant"}</span>
+                          <span>{doc.module_id ? "Sub Assistant" : "Assistant"}</span>
                         </div>
                       </div>
                     </div>
@@ -816,6 +837,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           </section>
         </div>
       </aside>
+    )}
 
       {/* RIGHT PANEL: Chatbot */}
       <div className="flex flex-1 flex-col overflow-hidden bg-card/30 relative">
@@ -827,32 +849,65 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             </div>
             <div>
               <h2 className="text-base font-semibold leading-none">
-                {activeType === "parent" ? system.name : modules.find(m => m.module_id === activeChildId)?.module_name || "Child Assistant"}
+                {activeType === "parent" ? system.name : modules.find(m => m.module_id === activeChildId)?.module_name || "Sub Assistant"}
               </h2>
               <p className="text-[11px] text-muted-foreground mt-1">
-                {activeType === "parent" ? "Parent Assistant Chat" : "Child Assistant Chat (Preview)"}
+                {activeType === "parent" ? "Assistant Chat" : "Sub Assistant Chat"}
               </p>
             </div>
+          </div>
+
+          {/* Right Header Actions: Sidebar Toggle & Fullscreen / Short Screen */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setShowSidebar((prev) => !prev)}
+              title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+            >
+              {showSidebar ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+              <span className="hidden sm:inline">{showSidebar ? "Hide Sidebar" : "Show Sidebar"}</span>
+            </Button>
+
+            <Button
+              variant={isFullScreen ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (!isFullScreen) {
+                  setIsFullScreen(true);
+                  setShowSidebar(false);
+                } else {
+                  setIsFullScreen(false);
+                  setShowSidebar(true);
+                }
+              }}
+              title={isFullScreen ? "Short Screen (Exit Full Screen)" : "Full Screen"}
+            >
+              {isFullScreen ? (
+                <>
+                  <Minimize2 className="size-4" />
+                  <span className="hidden sm:inline">Short Screen</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="size-4" />
+                  <span className="hidden sm:inline">Full Screen</span>
+                </>
+              )}
+            </Button>
           </div>
         </header>
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 relative">
-          {activeType === "child" && (
-             <div className="mx-auto max-w-md mb-6">
-                <Alert className="bg-primary/5 border-primary/20">
-                  <AlertDescription className="text-xs text-center text-primary/80">
-                    Child Assistant detailed chat implementation will be done later. Clicking here is ready for future implementation.
-                  </AlertDescription>
-                </Alert>
-             </div>
-          )}
 
           {messages.length === 0 && !sending ? (
             <div className="flex h-full flex-col items-center justify-center text-center opacity-60">
               <Bot className="size-12 mb-3 text-primary/50" />
               <h3 className="font-semibold text-lg">Start a conversation</h3>
-              <p className="text-sm max-w-sm mt-1">Send a message to interact with {activeType === "parent" ? "the Parent Assistant" : "this Child Assistant"}.</p>
+              <p className="text-sm max-w-sm mt-1">Send a message to interact with {activeType === "parent" ? "the Assistant" : "this Sub Assistant"}.</p>
             </div>
           ) : (
             messages.map((msg, idx) => (
@@ -908,7 +963,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           >
             <input
               type="text"
-              placeholder={`Message ${activeType === "parent" ? "Parent Assistant" : "Child Assistant"}...`}
+              placeholder={`Message ${activeType === "parent" ? "Assistant" : "Sub Assistant"}...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="w-full rounded-full border border-border bg-card pl-5 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm disabled:opacity-50"
@@ -928,9 +983,9 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       <Dialog open={deleteChildDialogOpen} onOpenChange={(open) => !childDeleting && setDeleteChildDialogOpen(open)}>
         <DialogContent className="border-border bg-popover sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Child Assistant</DialogTitle>
+            <DialogTitle className="text-destructive">Delete Sub Assistant</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-semibold text-foreground">"{childToDelete?.module_name || 'this module'}"</span>? 
+              Are you sure you want to delete <span className="font-semibold text-foreground">"{childToDelete?.module_name || 'this Sub Assistant'}"</span>? 
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>

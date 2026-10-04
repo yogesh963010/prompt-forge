@@ -2,6 +2,7 @@ import {
   AlertCircle,
   Archive,
   ArchiveRestore,
+  ArrowLeft,
   CheckCircle2,
   Globe,
   Loader2,
@@ -157,6 +158,19 @@ export function PromptEditor({
         </div>
       )}
 
+      {/* Back to Prompt Systems button */}
+      <div className="mb-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          onClick={onBackToLibrary}
+        >
+          <ArrowLeft className="size-4" />
+          <span>Back to Home</span>
+        </Button>
+      </div>
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase text-primary">Prompt System</p>
@@ -221,8 +235,8 @@ export function PromptEditor({
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`cursor-pointer whitespace-nowrap rounded-t-md px-3 py-2 text-xs transition ${activeTab === tab
-                ? "bg-card font-medium text-foreground shadow-inner"
-                : "text-muted-foreground hover:bg-card/40 hover:text-foreground"
+              ? "bg-card font-medium text-foreground shadow-inner"
+              : "text-muted-foreground hover:bg-card/40 hover:text-foreground"
               }`}
           >
             {tab}
