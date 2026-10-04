@@ -5,7 +5,7 @@ FastAPI route definitions for PromptForge RAG (/ask and related endpoints).
 
 import re
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +36,7 @@ class AskRequest(BaseModel):
     prompt_system_id: Optional[int] = Field(None, description="Optional Prompt System ID.")
     module_id: Optional[int] = Field(None, description="Optional Child Assistant Module ID.")
     session_id: Optional[str] = Field(None, description="Optional legacy session identifier for context resolution.")
+    variables: Optional[Dict[str, Any]] = Field(None, description="Optional current runtime variable values.")
 
 
 class ChatResponse(BaseModel):
@@ -142,6 +143,7 @@ async def ask(
             question=request.question.strip(),
             module_id=module_id,
             conversation_id=conversation_id,
+            runtime_variables=request.variables,
             db=db,
         )
 

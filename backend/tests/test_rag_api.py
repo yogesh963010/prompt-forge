@@ -58,7 +58,7 @@ async def test_user(db_session) -> User:
     user = User(
         email="rag_test@promptforge.dev",
         name="RAG Tester",
-        hashed_password="hashed_pw_test",
+        password_hash="hashed_pw_test",
     )
     db_session.add(user)
     await db_session.commit()
