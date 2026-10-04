@@ -9,6 +9,7 @@ import { moduleReferenceService, type ModuleReference } from "@/services/moduleR
 import { conversationsService, type Conversation, type Message } from "@/services/conversationsService";
 import { moduleService, type PromptModule } from "@/services/moduleService";
 import { ragApi } from "@/services/ragApi";
+import { documentService, type DocumentItem } from "@/services/documentService";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ModuleEditor } from "./ModuleEditor";
 import {
@@ -55,7 +56,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   const [chatError, setChatError] = useState<string | null>(null);
 
   // Documents State
-  const [documentStatus, setDocumentStatus] = useState<{has_document: boolean, filename: string | null}>({has_document: false, filename: null});
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -202,19 +203,23 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     loadDetails();
   }, [loadDetails]);
 
-  // Load Doc Status
-  const loadDocStatus = useCallback(async () => {
+  // Load Documents
+  const loadDocuments = useCallback(async () => {
     try {
-      const status = await ragApi.getStatus();
-      setDocumentStatus(status);
+      const docs = await documentService.listDocuments(
+        promptSystemId,
+        activeType === "child" ? activeChildId : null,
+        activeType === "parent"
+      );
+      setDocuments(docs);
     } catch (err) {
-      console.error("Failed to load document status", err);
+      console.error("Failed to load documents", err);
     }
-  }, []);
+  }, [promptSystemId, activeType, activeChildId]);
 
   useEffect(() => {
-    loadDocStatus();
-  }, [loadDocStatus]);
+    loadDocuments();
+  }, [loadDocuments]);
 
   // Load Conversation
   useEffect(() => {
@@ -297,8 +302,12 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       setUploadingDoc(true);
       setDocError(null);
       try {
-        await ragApi.uploadDocument(file);
-        await loadDocStatus();
+        await documentService.uploadDocument(
+          file,
+          promptSystemId,
+          activeType === "child" ? activeChildId : null
+        );
+        await loadDocuments();
       } catch (err: any) {
         setDocError(err.message || "Upload failed");
       } finally {
@@ -308,12 +317,12 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     }
   };
 
-  const handleRemoveDoc = async () => {
+  const handleRemoveDoc = async (documentId: string) => {
     setUploadingDoc(true);
     setDocError(null);
     try {
-      await ragApi.deleteDocuments();
-      await loadDocStatus();
+      await documentService.deleteDocument(documentId);
+      await loadDocuments();
     } catch (err: any) {
       setDocError(err.message || "Delete failed");
     } finally {
@@ -374,6 +383,20 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       // Create user message in DB
       await conversationsService.createMessage(conv.id, "user", userMessageContent);
 
+      // Fetch scoped document context for current assistant scope
+      let docContextText = "";
+      try {
+        const docCtx = await documentService.getScopeContext(
+          promptSystemId,
+          activeType === "child" ? activeChildId : null
+        );
+        if (docCtx.context_text) {
+          docContextText = `[Grounding Documents Context - Isolated Assistant Scope]\n${docCtx.context_text}\n\n`;
+        }
+      } catch (e) {
+        console.warn("Failed to fetch document context", e);
+      }
+
       // Construct LLM payload context
       let combinedQuestion = "";
       
@@ -381,7 +404,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         // Use Context API for Child Assistants
         const context = await conversationsService.getAssistantContext(activeChildId, conv.id);
         
-        let promptPrefix = "";
+        let promptPrefix = `[Assistant Scope: Child Assistant (Module #${activeChildId})]\n`;
         if (context.parent_instructions) {
           promptPrefix += `[Parent System Instructions]\n${context.parent_instructions}\n\n`;
         }
@@ -394,7 +417,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
            promptPrefix += `[Parent Variables]\n${JSON.stringify(parentVars, null, 2)}\n\n`;
         }
         
-        const childVars = Object.entries(runtimeVars); // Using runtimeVars for both parent/child for now
+        const childVars = Object.entries(runtimeVars);
         if (childVars.length > 0) {
           promptPrefix += `[Child Variables]\n${childVars.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
         }
@@ -403,12 +426,17 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         if (context.previous_child_context && context.previous_child_context.length > 0) {
            promptPrefix += `[Previous Child Conversations]\n${JSON.stringify(context.previous_child_context, null, 2)}\n\n`;
         }
+
+        // Add scoped documents context
+        if (docContextText) {
+          promptPrefix += docContextText;
+        }
         
         promptPrefix += `[User Message]\n`;
         combinedQuestion = `${promptPrefix}${userMessageContent}`;
       } else {
         // Manual context for Parent Assistant
-        let promptPrefix = "";
+        let promptPrefix = `[Assistant Scope: Parent Assistant (System #${promptSystemId})]\n`;
         if (system.instructions) {
           promptPrefix += `[System Instructions]\n${system.instructions}\n\n`;
         }
@@ -418,13 +446,25 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           promptPrefix += `[Variables]\n${varEntries.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
         }
 
+        // Add scoped documents context
+        if (docContextText) {
+          promptPrefix += docContextText;
+        }
+
         promptPrefix += `[User Message]\n`;
 
         combinedQuestion = `${promptPrefix}${userMessageContent}`;
       }
 
-      // Call Railway RAG backend
-      const response = await ragApi.askQuestion(combinedQuestion, conv.id.toString());
+      // Call PromptForge integrated local RAG backend
+      const scopedSessionId = `pf_u${system.owner_id}_s${promptSystemId}_${activeType === "child" ? `m${activeChildId}` : "p"}_c${conv.id}`;
+      const response = await ragApi.askQuestion(
+        userMessageContent,
+        scopedSessionId,
+        conv.id,
+        promptSystemId,
+        activeType === "child" && activeChildId ? activeChildId : undefined
+      );
       
       const assistantMsgContent = response.answer;
 
@@ -691,16 +731,23 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             </div>
           </section>
 
-          {/* Documents Section (Mock for RAG) */}
+          {/* Documents Section */}
           <section className="border-t border-border/60 pt-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Documents (RAG)</h3>
-              <Button size="icon" variant="ghost" className="size-6 rounded-full h-6 w-6" onClick={() => fileInputRef.current?.click()} disabled={uploadingDoc || documentStatus.has_document}>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Documents</h3>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-6 rounded-full h-6 w-6"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingDoc}
+                title="Upload PDF"
+              >
                 {uploadingDoc ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               </Button>
-              <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.txt,.docx,.md,.csv" onChange={handleFileUpload} />
+              <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" onChange={handleFileUpload} />
             </div>
-            
+
             {docError && (
               <Alert variant="destructive" className="mb-2 py-2 px-3 h-auto min-h-0 text-xs">
                 <AlertDescription className="text-xs">{docError}</AlertDescription>
@@ -708,21 +755,40 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             )}
 
             <div className="space-y-2">
-              {!documentStatus.has_document ? (
-                <div className="flex flex-col items-center justify-center p-4 border border-dashed border-border/60 rounded-lg bg-muted/20 text-center">
+              {documents.length === 0 ? (
+                <div
+                  className="flex flex-col items-center justify-center p-4 border border-dashed border-border/60 rounded-lg bg-muted/20 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
                   <Upload className="size-4 text-muted-foreground mb-1" />
-                  <span className="text-[10px] text-muted-foreground">Upload files for context</span>
+                  <span className="text-[10px] text-muted-foreground">Upload PDF for context</span>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-card/50">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <FileText className="size-3.5 text-primary shrink-0" />
-                    <span className="text-xs truncate font-medium">{documentStatus.filename || "Uploaded Document"}</span>
+                documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-card/50">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileText className="size-3.5 text-primary shrink-0" />
+                      <div className="overflow-hidden">
+                        <span className="text-xs truncate font-medium block" title={doc.filename}>{doc.filename}</span>
+                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
+                          <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                          <span>•</span>
+                          <span>{doc.module_id ? "Child Assistant" : "Parent Assistant"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-5 hover:bg-destructive/20 hover:text-destructive shrink-0"
+                      onClick={() => handleRemoveDoc(doc.id)}
+                      disabled={uploadingDoc}
+                      title="Delete Document"
+                    >
+                      {uploadingDoc ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                    </Button>
                   </div>
-                  <Button variant="ghost" size="icon" className="size-5 hover:bg-destructive/20 hover:text-destructive shrink-0" onClick={handleRemoveDoc} disabled={uploadingDoc}>
-                    {uploadingDoc ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-                  </Button>
-                </div>
+                ))
               )}
             </div>
           </section>

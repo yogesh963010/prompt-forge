@@ -21,8 +21,12 @@ export class ApiError extends Error {
  * Format error responses from FastAPI / Pydantic into human-readable messages.
  */
 export function formatErrorDetail(status: number, data: unknown): string {
+  if (typeof data === "string" && data.trim()) {
+    return data;
+  }
+
   const errData = data as
-    | { detail?: string | Array<{ msg?: string } | string> }
+    | { detail?: string | Array<{ msg?: string } | string>; message?: string }
     | null
     | undefined;
 
@@ -47,10 +51,14 @@ export function formatErrorDetail(status: number, data: unknown): string {
     }
   }
 
+  if (errData?.message && typeof errData.message === "string") {
+    return errData.message;
+  }
+
   if (status === 400) return "Invalid request. Please check your inputs.";
   if (status === 401) return "Authentication required. Please log in again.";
   if (status === 403) return "You do not have permission to perform this action.";
-  if (status === 404) return "Prompt System not found.";
+  if (status === 404) return "Resource not found.";
   if (status === 422) return "Validation failed. Please verify your inputs.";
   if (status >= 500) return "A server error occurred. Please try again later.";
 
