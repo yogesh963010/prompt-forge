@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  ArrowLeft,
   Bot,
   Check,
   Clock,
@@ -94,7 +95,11 @@ function getFileIcon(filename: string) {
   }
 }
 
-export function RagAssistant() {
+interface RagAssistantProps {
+  onBack?: () => void;
+}
+
+export function RagAssistant({ onBack }: RagAssistantProps = {}) {
   // Session State
   const [sessionId, setSessionId] = useState<string>(() => {
     if (typeof window !== "undefined") {
@@ -346,6 +351,21 @@ export function RagAssistant() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-background p-4 md:p-6">
+      {/* Top back button */}
+      {onBack && (
+        <div className="mb-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={onBack}
+          >
+            <ArrowLeft className="size-4" />
+            <span>Back to Prompt Systems</span>
+          </Button>
+        </div>
+      )}
+
       {/* Top Header Banner */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div className="flex items-center gap-3">

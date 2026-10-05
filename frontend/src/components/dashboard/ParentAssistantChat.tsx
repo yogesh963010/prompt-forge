@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Plus, Send, Sparkles, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,8 +41,32 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   // Variables State
   const [variables, setVariables] = useState<VariableDefinition[]>([]);
 
+  // Add Variable dialog state
+  const [addVarDialogOpen, setAddVarDialogOpen] = useState(false);
+  const [newVarName, setNewVarName] = useState("");
+  const [newVarLabel, setNewVarLabel] = useState("");
+  const [newVarDefault, setNewVarDefault] = useState("");
+  const [savingNewVar, setSavingNewVar] = useState(false);
+  const [addVarError, setAddVarError] = useState<string | null>(null);
+
   // Runtime Variables
   const [runtimeVars, setRuntimeVars] = useState<Record<string, string>>({});
+
+  // Full Screen and Sidebar State
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+
+  // Exit fullscreen on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullScreen) {
+        setIsFullScreen(false);
+        setShowSidebar(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullScreen]);
   const [varsSaved, setVarsSaved] = useState(false);
   const [isEditingVars, setIsEditingVars] = useState(true);
 
@@ -54,6 +78,8 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [clearingChat, setClearingChat] = useState(false);
+  const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
 
   // Documents State
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
@@ -315,6 +341,60 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     }
   };
 
+  // --- Handlers: Add Variable ---
+  const handleAddNewVariable = async () => {
+    if (!newVarName.trim()) {
+      setAddVarError("Variable name is required");
+      return;
+    }
+    const cleanName = newVarName.trim().replace(/[^a-zA-Z0-9_]/g, "_");
+    setSavingNewVar(true);
+    setAddVarError(null);
+    try {
+      const activeModRef = activeType === "child" ? modules.find(m => m.module_id === activeChildId) : null;
+      const currentVars = activeType === "parent"
+        ? variables
+        : (activeModRef?.module_variables as VariableDefinition[] || []);
+
+      if (currentVars.some(v => v.name.toLowerCase() === cleanName.toLowerCase())) {
+        setAddVarError(`Variable "${cleanName}" already exists`);
+        setSavingNewVar(false);
+        return;
+      }
+
+      const newDef: VariableDefinition = {
+        name: cleanName,
+        label: newVarLabel.trim() || cleanName,
+        type: "string",
+        default: newVarDefault,
+        required: false,
+      };
+
+      const updated = [...currentVars, newDef];
+
+      if (activeType === "parent") {
+        if (!system) return;
+        await promptSystemService.updateVariables(system.id, updated);
+        setVariables(updated);
+      } else {
+        if (!activeChildId) return;
+        await moduleService.update(activeChildId, { variables: updated });
+        const mods = await moduleReferenceService.list(promptSystemId);
+        setModules(mods.filter((m) => m.enabled));
+      }
+
+      setRuntimeVars(prev => ({ ...prev, [cleanName]: newVarDefault }));
+      setNewVarName("");
+      setNewVarLabel("");
+      setNewVarDefault("");
+      setAddVarDialogOpen(false);
+    } catch (err: any) {
+      setAddVarError(err.message || "Failed to add variable");
+    } finally {
+      setSavingNewVar(false);
+    }
+  };
+
 
   // --- Handlers: Documents ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,6 +444,25 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       setChatError(null);
     } catch (err: any) {
       setChatError("Failed to start new conversation");
+    }
+  };
+
+  const handleClearChat = async () => {
+    setClearingChat(true);
+    try {
+      if (currentConversation) {
+        await conversationsService.deleteConversation(currentConversation.id);
+        setCurrentConversation(null);
+      }
+      setMessages([]);
+      setChatError(null);
+      setClearChatDialogOpen(false);
+    } catch (err: any) {
+      console.error("Failed to clear conversation:", err);
+      setMessages([]);
+      setClearChatDialogOpen(false);
+    } finally {
+      setClearingChat(false);
     }
   };
 
@@ -533,6 +632,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           saving={childSaving}
           saveError={childSaveError}
           saveSuccess={childSaveSuccess}
+          entityType="assistant"
           onSave={handleSaveChild}
           onBack={() => setIsEditingChild(false)}
         />
@@ -541,21 +641,26 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   }
 
   return (
-    <div className="flex h-[calc(100vh-60px)] flex-col md:flex-row bg-background">
-      {/* LEFT PANEL: Details & Documents */}
-      <aside className="w-full border-r border-border/60 bg-muted/10 md:w-80 flex flex-col overflow-y-auto">
-        <div className="p-4 border-b border-border/60 sticky top-0 bg-background/95 backdrop-blur z-10">
+    <div className={`flex flex-col md:flex-row bg-background overflow-hidden ${
+      isFullScreen
+        ? "fixed inset-0 z-50 h-screen w-screen"
+        : "h-[calc(100vh-53px)] max-h-[calc(100vh-53px)]"
+    }`}>
+      {/* LEFT / MIDDLE PANEL: Details & Documents */}
+      {showSidebar && (
+        <aside className="w-full border-r border-border/60 bg-muted/10 md:w-80 flex flex-col md:h-full max-md:max-h-[50vh] overflow-hidden shrink-0">
+        <div className="p-4 border-b border-border/60 shrink-0 bg-background/95 backdrop-blur z-10">
           <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 mb-2 text-muted-foreground w-full justify-start hover:bg-muted/50">
             <ArrowLeft className="mr-2 size-4" />
             Back to Home
           </Button>
           <h2 className="text-xl font-bold tracking-tight text-foreground">{system.name}</h2>
           <span className="inline-flex mt-2 items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors bg-primary/10 text-primary border-primary/20">
-            Parent Assistant
+            Assistant
           </span>
         </div>
 
-        <div className="p-4 space-y-6 flex-1">
+        <div className="p-4 space-y-6 flex-1 overflow-y-auto min-h-0">
           {/* Details Section */}
           <section className="space-y-4">
             <div>
@@ -599,90 +704,134 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               const activeVariables = activeType === "parent" 
                 ? variables 
                 : (activeModRef?.module_variables as VariableDefinition[] || []);
-                
-              if (activeVariables.length === 0) return null;
 
               return (
                 <div className="mt-4 pt-4 border-t border-border/50">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {activeType === "parent" ? "Parent Variables" : "Child Variables"}
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <span>{activeType === "parent" ? "Parent Variables" : "Child Variables"}</span>
+                      {activeVariables.length > 0 && (
+                        <span className="bg-primary/10 text-primary px-1.5 py-0.2 rounded-full text-[9px] font-mono">
+                          {activeVariables.length}
+                        </span>
+                      )}
                     </h3>
-                    {!isEditingVars && (
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingVars(true)}>
-                        <Edit2 className="size-3" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    {activeVariables.map(v => (
-                      <div key={`runtime-${v.name}`} className="space-y-1">
-                        <label className="text-xs text-muted-foreground">{v.label || v.name}</label>
-                        {isEditingVars ? (
-                          <Input 
-                            value={runtimeVars[v.name] || ""} 
-                            onChange={(e) => setRuntimeVars(prev => ({ ...prev, [v.name]: e.target.value }))}
-                            className="h-7 text-xs bg-card"
-                          />
-                        ) : (
-                          <div className="text-sm font-medium text-foreground bg-muted/30 p-1.5 rounded border border-border/40 min-h-[28px] break-words">
-                            {runtimeVars[v.name] || <span className="text-muted-foreground italic text-xs">Not provided</span>}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {isEditingVars && (
-                      <Button 
-                        size="sm" 
-                        variant={varsSaved ? "secondary" : "default"}
-                        className="w-full mt-2 h-7 text-xs transition-all" 
-                        disabled={varsSaved}
-                        onClick={async () => {
-                          try {
-                            const updatedVariables = activeVariables.map(v => ({
-                              ...v,
-                              default: runtimeVars[v.name] || v.default
-                            }));
-                            
-                            if (activeType === "parent") {
-                              if (!system) return;
-                              await promptSystemService.updateVariables(system.id, updatedVariables);
-                              setVariables(updatedVariables);
-                            } else {
-                              if (!activeChildId) return;
-                              await moduleService.update(activeChildId, { variables: updatedVariables });
-                              // Reload modules to update module_variables
-                              const mods = await moduleReferenceService.list(promptSystemId);
-                              setModules(mods.filter((m) => m.enabled));
-                            }
-                            
-                            setVarsSaved(true);
-                            setTimeout(() => {
-                              setVarsSaved(false);
-                              setIsEditingVars(false);
-                            }, 500);
-                          } catch (err: any) {
-                            alert(err.message || "Failed to save variables to database");
-                          }
+                    <div className="flex items-center gap-1">
+                      {activeVariables.length > 0 && !isEditingVars && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setIsEditingVars(true)}
+                          title="Edit Variable Values"
+                        >
+                          <Edit2 className="size-3" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setAddVarError(null);
+                          setNewVarName("");
+                          setNewVarLabel("");
+                          setNewVarDefault("");
+                          setAddVarDialogOpen(true);
                         }}
+                        title={`Add ${activeType === "parent" ? "Parent" : "Child"} Variable`}
                       >
-                        {varsSaved ? (
-                          <><Check className="mr-1.5 size-3 text-success" /> Submitted</>
-                        ) : (
-                          "Submit Variables"
-                        )}
+                        <Plus className="size-3.5" />
                       </Button>
-                    )}
+                    </div>
                   </div>
+
+                  {activeVariables.length === 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddVarError(null);
+                        setNewVarName("");
+                        setNewVarLabel("");
+                        setNewVarDefault("");
+                        setAddVarDialogOpen(true);
+                      }}
+                      className="w-full rounded-lg border border-dashed border-border/60 py-2.5 px-3 text-center text-xs text-muted-foreground hover:border-primary/50 hover:bg-muted/30 hover:text-foreground transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="size-3" />
+                      <span>Add Variable</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeVariables.map(v => (
+                        <div key={`runtime-${v.name}`} className="space-y-1">
+                          <label className="text-xs text-muted-foreground">{v.label || v.name}</label>
+                          {isEditingVars ? (
+                            <Input 
+                              value={runtimeVars[v.name] || ""} 
+                              onChange={(e) => setRuntimeVars(prev => ({ ...prev, [v.name]: e.target.value }))}
+                              className="h-7 text-xs bg-card"
+                            />
+                          ) : (
+                            <div className="text-sm font-medium text-foreground bg-muted/30 p-1.5 rounded border border-border/40 min-h-[28px] break-words">
+                              {runtimeVars[v.name] || <span className="text-muted-foreground italic text-xs">Not provided</span>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {isEditingVars && (
+                        <Button 
+                          size="sm" 
+                          variant={varsSaved ? "secondary" : "default"}
+                          className="w-full mt-2 h-7 text-xs transition-all" 
+                          disabled={varsSaved}
+                          onClick={async () => {
+                            try {
+                              const updatedVariables = activeVariables.map(v => ({
+                                ...v,
+                                default: runtimeVars[v.name] || v.default
+                              }));
+                              
+                              if (activeType === "parent") {
+                                if (!system) return;
+                                await promptSystemService.updateVariables(system.id, updatedVariables);
+                                setVariables(updatedVariables);
+                              } else {
+                                if (!activeChildId) return;
+                                await moduleService.update(activeChildId, { variables: updatedVariables });
+                                // Reload modules to update module_variables
+                                const mods = await moduleReferenceService.list(promptSystemId);
+                                setModules(mods.filter((m) => m.enabled));
+                              }
+                              
+                              setVarsSaved(true);
+                              setTimeout(() => {
+                                setVarsSaved(false);
+                                setIsEditingVars(false);
+                              }, 500);
+                            } catch (err: any) {
+                              alert(err.message || "Failed to save variables to database");
+                            }
+                          }}
+                        >
+                          {varsSaved ? (
+                            <><Check className="mr-1.5 size-3 text-success" /> Submitted</>
+                          ) : (
+                            "Submit Variables"
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}
           </section>
 
-          {/* Child Assistants Section */}
+          {/* Sub Assistants Section */}
           <section>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center justify-between">
-              Child Assistants
+              Sub Assistants
               <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[9px]">{modules.length}</span>
             </h3>
             <div className="space-y-1.5">
@@ -696,7 +845,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               >
                 <div className="flex items-center gap-2">
                   <Bot className="size-4" />
-                  <span className="font-medium truncate">{system.name} (Parent)</span>
+                  <span className="font-medium truncate">{system.name} (Assistant)</span>
                 </div>
               </button>
               
@@ -723,7 +872,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                       size="icon"
                       className="size-7 h-7 w-7 text-muted-foreground hover:text-foreground bg-background/50 backdrop-blur"
                       onClick={() => handleOpenEditChild(mod.module_id)}
-                      title="Edit Child Assistant"
+                      title="Edit Sub Assistant"
                     >
                       <Edit2 className="size-3.5" />
                     </Button>
@@ -735,7 +884,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                         setChildToDelete(mod);
                         setDeleteChildDialogOpen(true);
                       }}
-                      title="Delete Child Assistant"
+                      title="Delete Sub Assistant"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
@@ -748,7 +897,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                 className="w-full mt-2 border-dashed h-8 text-xs text-muted-foreground"
                 onClick={handleOpenAddChild}
               >
-                <Plus className="mr-1.5 size-3" /> Add Child Assistant
+                <Plus className="mr-1.5 size-3" /> Add Sub Assistant
               </Button>
             </div>
           </section>
@@ -795,7 +944,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                         <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
                           <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                           <span>•</span>
-                          <span>{doc.module_id ? "Child Assistant" : "Parent Assistant"}</span>
+                          <span>{doc.module_id ? "Sub Assistant" : "Assistant"}</span>
                         </div>
                       </div>
                     </div>
@@ -816,6 +965,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           </section>
         </div>
       </aside>
+    )}
 
       {/* RIGHT PANEL: Chatbot */}
       <div className="flex flex-1 flex-col overflow-hidden bg-card/30 relative">
@@ -827,46 +977,150 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             </div>
             <div>
               <h2 className="text-base font-semibold leading-none">
-                {activeType === "parent" ? system.name : modules.find(m => m.module_id === activeChildId)?.module_name || "Child Assistant"}
+                {activeType === "parent" ? system.name : modules.find(m => m.module_id === activeChildId)?.module_name || "Sub Assistant"}
               </h2>
               <p className="text-[11px] text-muted-foreground mt-1">
-                {activeType === "parent" ? "Parent Assistant Chat" : "Child Assistant Chat (Preview)"}
+                {activeType === "parent" ? "Assistant Chat" : "Sub Assistant Chat"}
               </p>
             </div>
+          </div>
+
+          {/* Right Header Actions: Clear Chat, Sidebar Toggle & Fullscreen / Short Screen */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors"
+              onClick={() => setClearChatDialogOpen(true)}
+              disabled={clearingChat || messages.length === 0}
+              title={`Clear ${activeType === "parent" ? "Assistant" : "Sub Assistant"} Chat`}
+            >
+              {clearingChat ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              <span>Clear Chat</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setShowSidebar((prev) => !prev)}
+              title={showSidebar ? "Hide sidebar" : "Show sidebar"}
+            >
+              {showSidebar ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+              <span className="hidden sm:inline">{showSidebar ? "Hide Sidebar" : "Show Sidebar"}</span>
+            </Button>
+
+            <Button
+              variant={isFullScreen ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (!isFullScreen) {
+                  setIsFullScreen(true);
+                  setShowSidebar(false);
+                } else {
+                  setIsFullScreen(false);
+                  setShowSidebar(true);
+                }
+              }}
+              title={isFullScreen ? "Short Screen (Exit Full Screen)" : "Full Screen"}
+            >
+              {isFullScreen ? (
+                <>
+                  <Minimize2 className="size-4" />
+                  <span className="hidden sm:inline">Short Screen</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="size-4" />
+                  <span className="hidden sm:inline">Full Screen</span>
+                </>
+              )}
+            </Button>
           </div>
         </header>
 
         {/* Chat Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 relative">
-          {activeType === "child" && (
-             <div className="mx-auto max-w-md mb-6">
-                <Alert className="bg-primary/5 border-primary/20">
-                  <AlertDescription className="text-xs text-center text-primary/80">
-                    Child Assistant detailed chat implementation will be done later. Clicking here is ready for future implementation.
-                  </AlertDescription>
-                </Alert>
-             </div>
-          )}
 
           {messages.length === 0 && !sending ? (
-            <div className="flex h-full flex-col items-center justify-center text-center opacity-60">
-              <Bot className="size-12 mb-3 text-primary/50" />
-              <h3 className="font-semibold text-lg">Start a conversation</h3>
-              <p className="text-sm max-w-sm mt-1">Send a message to interact with {activeType === "parent" ? "the Parent Assistant" : "this Child Assistant"}.</p>
+            <div className="flex h-full flex-col items-center justify-center p-6 text-center">
+              <div className="relative mb-5 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-amber-500/10 ring-1 ring-primary/30 shadow-xl shadow-primary/10">
+                <Bot className="size-8 text-primary" />
+                <div className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow">
+                  <Sparkles className="size-3" />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                {activeType === "parent" ? system.name : (modules.find(m => m.module_id === activeChildId)?.module_name || "Sub Assistant")}
+              </h3>
+              <p className="mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
+                {activeType === "parent"
+                  ? "Interact directly with your configured Assistant. It carries your instructions, runtime variables, and isolated grounding documents."
+                  : "Chatting with this Sub Assistant. It respects configured input boundaries and carries specialized module context."}
+              </p>
+
+              {/* Feature Tags */}
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-[11px] font-medium text-primary shadow-xs">
+                  <Sparkles className="size-3" /> Grounded RAG
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/5 px-3 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shadow-xs">
+                  <Check className="size-3" /> Dynamic Context
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-xs">
+                  <Bot className="size-3" /> {activeType === "parent" ? "Assistant" : "Sub Assistant"}
+                </span>
+              </div>
+
+              {/* Quick Prompt Suggestions */}
+              <div className="mt-7 grid w-full max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-2 text-left">
+                {[
+                  "Summarize your instructions and goals",
+                  "What runtime variables are active?",
+                  "Draft a tailored outreach based on context",
+                  "Explain how your sub-assistants work together"
+                ].map((promptText, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setInput(promptText);
+                      setTimeout(() => {
+                        const inputEl = document.querySelector('input[type="text"]') as HTMLInputElement;
+                        inputEl?.focus();
+                      }, 50);
+                    }}
+                    className="group flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-3.5 text-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card hover:shadow-md"
+                  >
+                    <span className="font-medium text-foreground group-hover:text-primary transition-colors leading-snug">{promptText}</span>
+                    <span className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1">
+                      Click to send <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             messages.map((msg, idx) => (
-              <div key={msg.id || idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div key={msg.id || idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} pf-fade`}>
                 <div className="flex max-w-[85%] md:max-w-[75%] gap-3">
                   {msg.role !== "user" && (
-                    <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                    <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary border border-primary/20 shadow-xs">
                       <Bot className="size-3.5" />
                     </div>
                   )}
-                  <div className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-sm" : "bg-card border border-border/50 text-foreground rounded-tl-sm"}`}>
+                  <div className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm leading-relaxed ${
+                    msg.role === "user" 
+                      ? "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-primary/15 rounded-tr-xs font-normal" 
+                      : "bg-card/90 backdrop-blur-sm border border-border/70 text-foreground rounded-tl-xs"
+                  }`}>
                     <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                     {msg.created_at && (
-                       <div className={`mt-1.5 text-[9px] ${msg.role === "user" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                       <div className={`mt-1.5 text-[9px] ${msg.role === "user" ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                        </div>
                     )}
@@ -893,9 +1147,9 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
         </div>
 
         {/* Chat Input */}
-        <div className="border-t border-border/60 bg-background/95 backdrop-blur p-4 pb-6">
+        <div className="border-t border-border/60 bg-background/95 backdrop-blur-md p-4 pb-6">
           {chatError && (
-             <Alert variant="destructive" className="mb-3 py-2 px-3 h-auto min-h-0 text-xs mx-auto max-w-4xl">
+             <Alert variant="destructive" className="mb-3 py-2 px-3 h-auto min-h-0 text-xs mx-auto max-w-4xl shadow-sm">
                <AlertDescription className="text-xs">{chatError}</AlertDescription>
              </Alert>
           )}
@@ -904,21 +1158,21 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
               e.preventDefault();
               handleSendMessage();
             }}
-            className="relative flex items-center max-w-4xl mx-auto"
+            className="relative flex items-center max-w-4xl mx-auto rounded-full bg-card/80 border border-border/80 shadow-md shadow-primary/5 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 backdrop-blur"
           >
             <input
               type="text"
-              placeholder={`Message ${activeType === "parent" ? "Parent Assistant" : "Child Assistant"}...`}
+              placeholder={`Message ${activeType === "parent" ? "Assistant" : "Sub Assistant"}...`}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="w-full rounded-full border border-border bg-card pl-5 pr-12 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 shadow-sm disabled:opacity-50"
+              className="w-full rounded-full bg-transparent pl-5 pr-14 py-3.5 text-sm focus:outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
               disabled={sending}
             />
             <Button
               type="submit"
               size="icon"
               disabled={!input.trim() || sending}
-              className="absolute right-2 size-9 rounded-full transition-all"
+              className="absolute right-1.5 size-9 rounded-full bg-primary text-primary-foreground shadow-sm hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:hover:scale-100"
             >
               <Send className="size-4" />
             </Button>
@@ -928,9 +1182,9 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       <Dialog open={deleteChildDialogOpen} onOpenChange={(open) => !childDeleting && setDeleteChildDialogOpen(open)}>
         <DialogContent className="border-border bg-popover sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Child Assistant</DialogTitle>
+            <DialogTitle className="text-destructive">Delete Sub Assistant</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-semibold text-foreground">"{childToDelete?.module_name || 'this module'}"</span>? 
+              Are you sure you want to delete <span className="font-semibold text-foreground">"{childToDelete?.module_name || 'this Sub Assistant'}"</span>? 
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
@@ -961,6 +1215,118 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                 <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Deleting...</>
               ) : (
                 <><Trash2 className="mr-1.5 size-3.5" /> Delete</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Add Variable */}
+      <Dialog open={addVarDialogOpen} onOpenChange={(open) => !savingNewVar && setAddVarDialogOpen(open)}>
+        <DialogContent className="border-border bg-popover sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add {activeType === "parent" ? "Parent" : "Child"} Variable</DialogTitle>
+            <DialogDescription>
+              Define a new variable for this {activeType === "parent" ? "Assistant" : "Sub Assistant"}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {addVarError && (
+            <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{addVarError}</span>
+            </div>
+          )}
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Variable Key Name *</label>
+              <Input
+                placeholder="e.g. user_query, customer_name"
+                value={newVarName}
+                onChange={(e) => setNewVarName(e.target.value)}
+                className="h-8 text-xs font-mono"
+              />
+              <span className="text-[10px] text-muted-foreground">Will be referenced as {`{{${newVarName || "var_name"}}}`}</span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Display Label</label>
+              <Input
+                placeholder="e.g. Customer Name"
+                value={newVarLabel}
+                onChange={(e) => setNewVarLabel(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-foreground">Default Value (optional)</label>
+              <Input
+                placeholder="Default value or leave empty"
+                value={newVarDefault}
+                onChange={(e) => setNewVarDefault(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:space-x-0 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddVarDialogOpen(false)}
+              disabled={savingNewVar}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleAddNewVariable}
+              disabled={savingNewVar || !newVarName.trim()}
+            >
+              {savingNewVar ? (
+                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Adding...</>
+              ) : (
+                <><Plus className="mr-1.5 size-3.5" /> Add Variable</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Clear Chat Confirmation */}
+      <Dialog open={clearChatDialogOpen} onOpenChange={(open) => !clearingChat && setClearChatDialogOpen(open)}>
+        <DialogContent className="border-border bg-popover sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="size-4" />
+              <span>Clear Chat History?</span>
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear this {activeType === "parent" ? "Assistant" : "Sub Assistant"} chat? All conversation messages will be deleted.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="gap-2 sm:space-x-0 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setClearChatDialogOpen(false)}
+              disabled={clearingChat}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleClearChat}
+              disabled={clearingChat}
+            >
+              {clearingChat ? (
+                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Clearing...</>
+              ) : (
+                <><Trash2 className="mr-1.5 size-3.5" /> Clear Chat</>
               )}
             </Button>
           </DialogFooter>

@@ -181,6 +181,15 @@ export const promptSystemService = {
   },
 
   /**
+   * Duplicate a Prompt System: POST /prompt-systems/{id}/duplicate
+   */
+  async duplicate(id: number): Promise<PromptSystem> {
+    return apiRequest<PromptSystem>(`/prompt-systems/${id}/duplicate`, {
+      method: "POST",
+    });
+  },
+
+  /**
    * Delete Prompt System by ID: DELETE /prompt-systems/{id}
    */
   async delete(id: number): Promise<{ message: string; id: number }> {

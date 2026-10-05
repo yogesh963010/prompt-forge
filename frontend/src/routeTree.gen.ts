@@ -11,12 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as RagRouteImport } from './routes/rag'
 import { Route as RegisterRouteImport } from './routes/register'
-import { Route as HistoryHistoryIdRouteImport } from './routes/history.$historyId'
 import { Route as SharedShareTokenRouteImport } from './routes/shared.$shareToken'
 
 const IndexRoute = IndexRouteImport.update({
@@ -27,11 +25,6 @@ const IndexRoute = IndexRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HistoryRoute = HistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -54,11 +47,6 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HistoryHistoryIdRoute = HistoryHistoryIdRouteImport.update({
-  id: '/$historyId',
-  path: '/$historyId',
-  getParentRoute: () => HistoryRoute,
-} as any)
 const SharedShareTokenRoute = SharedShareTokenRouteImport.update({
   id: '/shared/$shareToken',
   path: '/shared/$shareToken',
@@ -68,35 +56,29 @@ const SharedShareTokenRoute = SharedShareTokenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/history': typeof HistoryRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
   '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
-  '/history/$historyId': typeof HistoryHistoryIdRoute
   '/shared/$shareToken': typeof SharedShareTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/history': typeof HistoryRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
   '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
-  '/history/$historyId': typeof HistoryHistoryIdRoute
   '/shared/$shareToken': typeof SharedShareTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
-  '/history': typeof HistoryRouteWithChildren
   '/login': typeof LoginRoute
   '/modules': typeof ModulesRoute
   '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
-  '/history/$historyId': typeof HistoryHistoryIdRoute
   '/shared/$shareToken': typeof SharedShareTokenRoute
 }
 export interface FileRouteTypes {
@@ -104,41 +86,34 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
-    | '/history'
     | '/login'
     | '/modules'
     | '/rag'
     | '/register'
-    | '/history/$historyId'
     | '/shared/$shareToken'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
-    | '/history'
     | '/login'
     | '/modules'
     | '/rag'
     | '/register'
-    | '/history/$historyId'
     | '/shared/$shareToken'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
-    | '/history'
     | '/login'
     | '/modules'
     | '/rag'
     | '/register'
-    | '/history/$historyId'
     | '/shared/$shareToken'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
-  HistoryRoute: typeof HistoryRouteWithChildren
   LoginRoute: typeof LoginRoute
   ModulesRoute: typeof ModulesRoute
   RagRoute: typeof RagRoute
@@ -160,13 +135,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/history': {
-      id: '/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -197,13 +165,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/history/$historyId': {
-      id: '/history/$historyId'
-      path: '/$historyId'
-      fullPath: '/history/$historyId'
-      preLoaderRoute: typeof HistoryHistoryIdRouteImport
-      parentRoute: typeof HistoryRoute
-    }
     '/shared/$shareToken': {
       id: '/shared/$shareToken'
       path: '/shared/$shareToken'
@@ -214,21 +175,9 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface HistoryRouteChildren {
-  HistoryHistoryIdRoute: typeof HistoryHistoryIdRoute
-}
-
-const HistoryRouteChildren: HistoryRouteChildren = {
-  HistoryHistoryIdRoute: HistoryHistoryIdRoute,
-}
-
-const HistoryRouteWithChildren =
-  HistoryRoute._addFileChildren(HistoryRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
-  HistoryRoute: HistoryRouteWithChildren,
   LoginRoute: LoginRoute,
   ModulesRoute: ModulesRoute,
   RagRoute: RagRoute,

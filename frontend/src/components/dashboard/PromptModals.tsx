@@ -24,6 +24,9 @@ interface CreatePromptSystemDialogProps {
   creating: boolean;
   createError: string | null;
   onSubmit: () => void;
+  title?: string;
+  description?: string;
+  submitText?: string;
 }
 
 export function CreatePromptSystemDialog({
@@ -38,14 +41,17 @@ export function CreatePromptSystemDialog({
   creating,
   createError,
   onSubmit,
+  title,
+  description,
+  submitText,
 }: CreatePromptSystemDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-border bg-popover sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Prompt System</DialogTitle>
+          <DialogTitle>{title || "New Prompt System"}</DialogTitle>
           <DialogDescription>
-            Create a new Prompt System in your workspace.
+            {description || "Create a new Prompt System in your workspace."}
           </DialogDescription>
         </DialogHeader>
 
@@ -111,7 +117,7 @@ export function CreatePromptSystemDialog({
               ) : (
                 <>
                   <Plus className="mr-1.5 size-3.5" />
-                  Create Prompt System
+                  {submitText || "Create Prompt System"}
                 </>
               )}
             </Button>

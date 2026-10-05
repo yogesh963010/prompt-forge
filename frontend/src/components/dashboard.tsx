@@ -26,8 +26,6 @@ import { DeleteModuleDialog, ModuleLibrary } from "./dashboard/ModuleLibrary";
 import { ModuleEditor } from "./dashboard/ModuleEditor";
 import { PromptEditor } from "./dashboard/PromptEditor";
 import { PromptLibrary } from "./dashboard/PromptLibrary";
-import { PromptHistoryLibrary } from "./dashboard/PromptHistoryLibrary";
-import { PromptHistoryDetail } from "./dashboard/PromptHistoryDetail";
 import { RagAssistant } from "./dashboard/RagAssistant";
 import {
   CreatePromptSystemDialog,
@@ -42,20 +40,16 @@ import {
   DeleteVariableDialog,
   VariableModal,
 } from "./dashboard/VariablesSection";
-import { historyService, type PromptRunHistoryItem } from "@/services";
 
 export function PromptForgeDashboard({
   initialScreen = "library",
-  initialHistoryId = null,
 }: {
-  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "parent_assistant";
-  initialHistoryId?: number | null;
+  initialScreen?: "library" | "editor" | "modules" | "module-editor" | "rag" | "parent_assistant";
 } = {}) {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<
-    "library" | "editor" | "modules" | "module-editor" | "history" | "history-detail" | "rag" | "parent_assistant"
+    "library" | "editor" | "modules" | "module-editor" | "rag" | "parent_assistant"
   >(initialScreen);
-  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(initialHistoryId);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -208,57 +202,11 @@ export function PromptForgeDashboard({
     }
   }, [handleLogout]);
 
-  // Prompt History state
-  const [historyItems, setHistoryItems] = useState<PromptRunHistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-
-  const loadHistory = useCallback(async () => {
-    setLoadingHistory(true);
-    setHistoryError(null);
-    try {
-      const res = await historyService.getHistory();
-      setHistoryItems(res.items || []);
-    } catch (err: unknown) {
-      const apiErr = err as { status?: number; message?: string };
-      if (apiErr?.status === 401) {
-        handleLogout();
-        return;
-      }
-      setHistoryError(apiErr.message || "Failed to load prompt history.");
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [handleLogout]);
-
-  useEffect(() => {
-    if (isAuthenticated()) {
-      loadHistory();
-    }
-  }, [loadHistory]);
-
-  const handleOpenHistoryDetail = useCallback((id: number) => {
-    setSelectedHistoryId(id);
-    setScreen("history-detail");
-  }, []);
-
-  const handleDeleteHistory = useCallback(async (id: number) => {
-    await historyService.deleteHistory(id);
-    setHistoryItems((prev) => prev.filter((item) => item.id !== id));
-    if (selectedHistoryId === id) {
-      setSelectedHistoryId(null);
-      setScreen("history");
-    }
-  }, [selectedHistoryId]);
-
   useEffect(() => {
     if (initialScreen) {
       setScreen(initialScreen);
     }
-    if (initialHistoryId) {
-      setSelectedHistoryId(initialHistoryId);
-    }
-  }, [initialScreen, initialHistoryId]);
+  }, [initialScreen]);
 
   const handleOpenModule = useCallback(
     async (id: number) => {
@@ -587,6 +535,17 @@ export function PromptForgeDashboard({
     }
   };
 
+  // Handle Duplicate Prompt System
+  const handleDuplicatePromptSystem = async (id: number) => {
+    try {
+      const duplicated = await promptSystemService.duplicate(id);
+      setSystems((prev) => [duplicated, ...prev]);
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      setListError(apiErr.message || "Failed to duplicate Prompt System.");
+    }
+  };
+
   // Variable Management Handlers (Add, Edit, Delete)
   const openAddVariable = (prefillName?: string) => {
     setVariableModalMode("add");
@@ -836,13 +795,12 @@ export function PromptForgeDashboard({
           onClick={() => setMobileNav(false)}
         />
       )}
-      <div className="relative flex min-h-screen">
+      <div className="relative flex h-screen overflow-hidden">
         <Sidebar
           open={mobileNav}
           user={currentUser}
           systemCount={systems.length}
           moduleCount={modules.length}
-          historyCount={historyItems.length}
           currentScreen={screen}
           onClose={() => setMobileNav(false)}
           onHome={() => {
@@ -857,23 +815,13 @@ export function PromptForgeDashboard({
             setScreen("modules");
             setMobileNav(false);
           }}
-          onHistory={() => {
-            setScreen("history");
-            setSelectedHistoryId(null);
-            setMobileNav(false);
-            loadHistory();
-          }}
           onRag={() => {
             setScreen("rag");
             setMobileNav(false);
           }}
-          onAssistants={() => {
-            setScreen("assistants");
-            setMobileNav(false);
-          }}
           onLogout={handleLogout}
         />
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 h-screen overflow-y-auto">
           <header className="sticky top-0 z-20 border-b border-border/60 bg-surface-glass px-4 py-3 backdrop-blur-xl sm:px-6">
             <div className="flex items-center gap-3">
               <Button
@@ -893,33 +841,6 @@ export function PromptForgeDashboard({
                   >
                     AI Assistant
                   </button>
-                ) : screen === "assistants" ? (
-                  <button
-                    onClick={() => setScreen("assistants")}
-                    className="cursor-pointer font-medium text-foreground hover:text-foreground"
-                  >
-                    Assistants
-                  </button>
-                ) : screen === "history" || screen === "history-detail" ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setScreen("history");
-                        setSelectedHistoryId(null);
-                      }}
-                      className="cursor-pointer hover:text-foreground"
-                    >
-                      History
-                    </button>
-                    {screen === "history-detail" && (
-                      <>
-                        <span>/</span>
-                        <span className="font-medium text-foreground truncate max-w-[200px]">
-                          Prompt Detail
-                        </span>
-                      </>
-                    )}
-                  </>
                 ) : screen === "modules" || screen === "module-editor" ? (
                   <>
                     <button
@@ -950,6 +871,14 @@ export function PromptForgeDashboard({
                         <span>/</span>
                         <span className="font-medium text-foreground truncate max-w-[200px]">
                           {editName || selectedSystem.name}
+                        </span>
+                      </>
+                    )}
+                    {screen === "parent_assistant" && systemToRun && (
+                      <>
+                        <span>/</span>
+                        <span className="font-medium text-foreground truncate max-w-[200px]">
+                          {systemToRun.name}
                         </span>
                       </>
                     )}
@@ -1014,6 +943,12 @@ export function PromptForgeDashboard({
                   </>
                 )}
 
+                {screen === "parent_assistant" && (
+                  <Button size="sm" onClick={() => setNewOpen(true)} className="gap-1.5">
+                    <Plus className="size-3.5" /> New Assistant
+                  </Button>
+                )}
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1048,6 +983,7 @@ export function PromptForgeDashboard({
               onDelete={promptDelete}
               onArchive={handleArchivePromptSystem}
               onUnarchive={handleUnarchivePromptSystem}
+              onDuplicate={handleDuplicatePromptSystem}
               onRun={(system) => {
                 setSystemToRun({ id: system.id, name: system.name, variables: system.variables });
                 setScreen("parent_assistant");
@@ -1106,6 +1042,7 @@ export function PromptForgeDashboard({
               onOpenModule={handleOpenModule}
               onEditModule={handleOpenModule}
               onDeleteModule={promptDeleteModule}
+              onBack={() => setScreen("library")}
             />
           )}
 
@@ -1126,29 +1063,7 @@ export function PromptForgeDashboard({
             />
           )}
 
-          {screen === "history" && (
-            <PromptHistoryLibrary
-              historyItems={historyItems}
-              loading={loadingHistory}
-              error={historyError}
-              onRefresh={loadHistory}
-              onOpenDetail={handleOpenHistoryDetail}
-              onDelete={handleDeleteHistory}
-            />
-          )}
-
-          {screen === "history-detail" && selectedHistoryId && (
-            <PromptHistoryDetail
-              historyId={selectedHistoryId}
-              onBack={() => {
-                setScreen("history");
-                setSelectedHistoryId(null);
-              }}
-              onDeleted={handleDeleteHistory}
-            />
-          )}
-
-          {screen === "rag" && <RagAssistant />}
+          {screen === "rag" && <RagAssistant onBack={() => setScreen("library")} />}
           
           {screen === "parent_assistant" && systemToRun && (
             <ParentAssistantChat promptSystemId={systemToRun.id} onBack={() => setScreen("library")} />
@@ -1165,6 +1080,9 @@ export function PromptForgeDashboard({
             if (!open) setCreateError(null);
           }
         }}
+        title={screen === "parent_assistant" ? "New Assistant" : "New Prompt System"}
+        description={screen === "parent_assistant" ? "Create a new Assistant in your workspace." : "Create a new Prompt System in your workspace."}
+        submitText={screen === "parent_assistant" ? "Create Assistant" : "Create Prompt System"}
         createName={createName}
         setCreateName={setCreateName}
         createDescription={createDescription}
@@ -1250,12 +1168,7 @@ export function PromptForgeDashboard({
 
       <PromptRunModal
         open={runModalOpen}
-        onOpenChange={(open) => {
-          setRunModalOpen(open);
-          if (!open) {
-            loadHistory();
-          }
-        }}
+        onOpenChange={setRunModalOpen}
         promptSystemId={systemToRun?.id ?? null}
         promptSystemName={systemToRun?.name}
         variables={systemToRun?.variables}
