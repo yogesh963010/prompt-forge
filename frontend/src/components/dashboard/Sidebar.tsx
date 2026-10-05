@@ -34,7 +34,6 @@ export function Sidebar({
 
   const links = [
     { label: "Home", icon: Home, action: onHome, active: currentScreen === "library" || currentScreen === "editor", count: systemCount },
-    { label: "Modules", icon: Boxes, action: onModules, active: isModulesActive, count: moduleCount },
     { label: "AI Assistant", icon: Bot, action: onRag, active: isRagActive },
   ];
 
@@ -121,7 +120,7 @@ export function Sidebar({
             <div className="h-full w-2/3 rounded-full bg-primary" />
           </div>
           <div className="mt-2 font-mono text-[9px] uppercase text-muted-foreground">
-            {systemCount} {systemCount === 1 ? "prompt system" : "prompt systems"}
+            {systemCount} {systemCount === 1 ? "assistant" : "assistants"}
           </div>
         </div>
       </div>

@@ -189,7 +189,7 @@ export function ModuleEditor({
 
   // Context preset toggles
   const standardContexts = [
-    { key: "parent_variables", label: "Parent Variables", desc: "Access variables defined in the Prompt System" },
+    { key: "parent_variables", label: "Parent Variables", desc: "Access variables defined in the Assistant" },
     { key: "parent_instructions", label: "Parent Instructions", desc: "Access the overarching prompt instructions" },
     { key: "previous_module_output", label: "Previous Module Output", desc: "Receive the result from the previous module" },
     { key: "user_input", label: "User Input", desc: "Direct input provided by end-user at runtime" },
@@ -353,8 +353,8 @@ export function ModuleEditor({
             </div>
             <h1 className="text-base font-semibold">
               {isNew
-                ? (entityType === "assistant" ? "Create Assistant" : "Create Prompt Module")
-                : name || (entityType === "assistant" ? "Edit Assistant" : "Edit Module")}
+                ? (entityType === "assistant" ? "Create Sub Assistant" : "Create Prompt Module")
+                : name || (entityType === "assistant" ? "Edit Sub Assistant" : "Edit Module")}
             </h1>
           </div>
         </div>
@@ -367,16 +367,16 @@ export function ModuleEditor({
               className="text-destructive hover:bg-destructive/10"
               onClick={onDelete}
             >
-              <Trash2 className="mr-1.5 size-3.5" /> {entityType === "assistant" ? "Delete Assistant" : "Delete Module"}
+              <Trash2 className="mr-1.5 size-3.5" /> {entityType === "assistant" ? "Delete Sub Assistant" : "Delete Module"}
             </Button>
           )}
-          <Button size="sm" onClick={() => handleFormSubmit()} disabled={saving || !name.trim()}>
+          <Button size="sm" onClick={() => handleFormSubmit()} disabled={saving || !name.trim() || (entityType !== "assistant" && !description.trim()) || !instructions.trim()}>
             {saving ? (
               <>
                 <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Saving...
               </>
             ) : isNew ? (
-              entityType === "assistant" ? "Create Assistant" : "Create Module"
+              entityType === "assistant" ? "Create Sub Assistant" : "Create Module"
             ) : (
               "Save Changes"
             )}
@@ -399,7 +399,8 @@ export function ModuleEditor({
       )}
 
       {/* Tabs navigation */}
-      <div className="mt-5 flex flex-wrap gap-1 border-b border-border/60 pb-2">
+      {entityType !== "assistant" && (
+        <div className="mt-5 flex flex-wrap gap-1 border-b border-border/60 pb-2">
         <Button
           variant={activeTab === "overview" ? "secondary" : "ghost"}
           size="sm"
@@ -448,10 +449,37 @@ export function ModuleEditor({
         >
           Examples ({examples.length})
         </Button>
-      </div>
 
-      {/* TAB: Instructions */}
-      {activeTab === "instructions" && (
+        </div>
+      )}
+
+      {entityType === "assistant" ? (
+        <div className="mt-5 space-y-4">
+          <div className="rounded-lg bg-card/55 p-4 ring-1 ring-border/60">
+            <h2 className="text-sm font-semibold">Sub Assistant Name *</h2>
+            <div className="mt-4 max-w-xl">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Research Assistant, Critic"
+              />
+            </div>
+          </div>
+          <div className="rounded-lg bg-card/55 p-4 ring-1 ring-border/60">
+            <h2 className="text-sm font-semibold">Instructions *</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Define what this sub assistant should do.</p>
+            <Textarea
+              className="mt-3 min-h-72 font-mono text-xs leading-relaxed"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="You are an expert at..."
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* TAB: Settings & Overview */}
+          {activeTab === "overview" && (
         <div className="mt-5 space-y-4">
           <div className="rounded-lg bg-card/55 p-4 ring-1 ring-border/60">
             <h2 className="text-sm font-semibold">Module Instructions</h2>
@@ -717,6 +745,8 @@ export function ModuleEditor({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Variable Modal */}

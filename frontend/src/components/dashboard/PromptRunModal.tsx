@@ -100,7 +100,7 @@ function saveParentValues(systemId: number | null, values: Record<string, string
   try {
     localStorage.setItem(key, JSON.stringify(values));
   } catch (e) {
-    console.warn("Failed to persist prompt system runtime values:", e);
+    console.warn("Failed to persist assistant runtime values:", e);
   }
 }
 
@@ -126,13 +126,13 @@ export function PromptRunModal({
   // Step state: 1 = Variables, 2 = Preview, 3 = Destination
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Attached modules for the prompt system
+  // Attached modules for the assistant
   const [attachedModules, setAttachedModules] = useState<ModuleReference[]>([]);
   const [loadingModules, setLoadingModules] = useState<boolean>(false);
-  // Selected module ID (null means run full prompt system)
+  // Selected module ID (null means run full assistant)
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
 
-  // Parse prompt system variables safely
+  // Parse assistant variables safely
   const configuredParentVars: VariableDefinition[] = useMemo(() => {
     return parseVariableList(variables);
   }, [variables]);
@@ -369,7 +369,7 @@ export function PromptRunModal({
     if (!validateStep1()) return;
 
     if (!promptSystemId) {
-      setServerError("Prompt System ID is required to run.");
+      setServerError("Assistant ID is required to run.");
       return;
     }
 
@@ -430,7 +430,7 @@ export function PromptRunModal({
           hasPreviousOutputContext && runtimePreviousOutput ? runtimePreviousOutput : undefined,
       });
 
-      // Save entered Prompt System variable values on successful run for automatic pre-fill
+      // Save entered Assistant variable values on successful run for automatic pre-fill
       if (hasParentVariablesContext && promptSystemId) {
         saveParentValues(promptSystemId, runtimeParentValues);
       }
@@ -516,7 +516,7 @@ export function PromptRunModal({
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <DialogTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-                <span>Run: {promptSystemName || "Prompt System"}</span>
+                <span>Run: {promptSystemName || "Assistant"}</span>
                 
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
@@ -727,7 +727,7 @@ export function PromptRunModal({
                     <div className="flex items-center gap-2">
                       <Sparkles className="size-4 text-primary" />
                       <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                        Prompt System Variables ({configuredParentVars.length})
+                        Assistant Variables ({configuredParentVars.length})
                       </h3>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1016,7 +1016,7 @@ export function PromptRunModal({
                 </span>
                 {isEditingResolved && (
                   <span className="text-primary font-medium">
-                    (In-session temporary edit — original Prompt System unchanged)
+                    (In-session temporary edit — original Assistant unchanged)
                   </span>
                 )}
               </div>

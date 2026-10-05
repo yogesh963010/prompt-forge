@@ -270,7 +270,7 @@ export function PromptPreviewDialog({
                 <div className="flex items-center justify-between rounded-md bg-primary-soft/40 px-3 py-2 text-xs text-primary border border-primary/20 shrink-0">
                   <div className="flex items-center gap-2">
                     <Edit2 className="size-3.5 shrink-0" />
-                    <span>Editing preview prompt. Changes are temporary and do NOT update the permanent Prompt System.</span>
+                    <span>Editing preview prompt. Changes are temporary and do NOT update the permanent Assistant.</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={handleCancelEdit}>

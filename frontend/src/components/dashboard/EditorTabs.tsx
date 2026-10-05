@@ -208,14 +208,14 @@ export function OverviewTab({
   return (
     <Panel
       title="Overview"
-      description="Basic details and configuration for this Prompt System."
+      description="Basic details and configuration for this Assistant."
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name">
           <Input
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
-            placeholder="Prompt System Name"
+            placeholder="Assistant Name"
           />
         </Field>
         <Field label="Optional Icon">
@@ -228,7 +228,7 @@ export function OverviewTab({
             rows={4}
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
-            placeholder="Explain the purpose of this Prompt System..."
+            placeholder="Explain the purpose of this Assistant..."
           />
         </Field>
         <div className="sm:col-span-2 flex items-center justify-between border-t border-border/60 pt-4">
@@ -238,7 +238,7 @@ export function OverviewTab({
             onClick={onDelete}
             className="text-destructive hover:bg-destructive/10"
           >
-            <Trash2 className="mr-1.5 size-3.5" /> Delete Prompt System
+            <Trash2 className="mr-1.5 size-3.5" /> Delete Assistant
           </Button>
           <Button size="sm" onClick={onSave} disabled={saving || !editName.trim()}>
             {saving ? (
@@ -272,7 +272,7 @@ export function InstructionsTab({
   return (
     <Panel
       title="Core Instructions"
-      description="Define the role, approach, and boundaries for this Prompt System. Use {variable_name} syntax for variables."
+      description="Define the role, approach, and boundaries for this Assistant. Use {variable_name} syntax for variables."
     >
       <Textarea
         className="min-h-80 font-mono text-xs leading-relaxed"

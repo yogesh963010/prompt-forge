@@ -50,7 +50,7 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
 
         {/* Security badge / footnote */}
         <div className="mt-6 text-center font-mono text-[10px] text-muted-foreground">
-          PromptForge • Prompt System & Module Architecture
+          PromptForge • Assistant & Module Architecture
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ export interface Conversation {
   prompt_system_id?: number;
   module_id?: number;
   title?: string;
+  variables?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
@@ -40,8 +41,16 @@ export const conversationsService = {
     return apiRequest<Conversation>(`/conversations/${id}`, { method: "GET" });
   },
 
+  async updateConversation(id: number, data: { title: string }): Promise<Conversation> {
+    return apiRequest<Conversation>(`/conversations/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+  },
+
   async deleteConversation(id: number): Promise<void> {
     await apiRequest(`/conversations/${id}`, { method: "DELETE" });
+  },
+
+  async clearMessages(id: number): Promise<void> {
+    await apiRequest(`/conversations/${id}/clear`, { method: "POST" });
   },
 
   async getMessages(conversationId: number): Promise<Message[]> {

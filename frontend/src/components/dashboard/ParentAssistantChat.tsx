@@ -1,25 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Plus, Send, Sparkles, Trash2, Upload, User, Zap, Edit2, Check, X, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Edit2, Paperclip, MoreHorizontal, MessageSquare, Search, ChevronDown, RefreshCw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { promptSystemService, type PromptSystem, type VariableDefinition } from "@/services/promptSystemService";
+import { Switch } from "@/components/ui/switch";
+import { promptSystemService, type PromptSystem } from "@/services/promptSystemService";
 import { moduleReferenceService, type ModuleReference } from "@/services/moduleReferenceService";
 import { conversationsService, type Conversation, type Message } from "@/services/conversationsService";
 import { moduleService, type PromptModule } from "@/services/moduleService";
 import { ragApi } from "@/services/ragApi";
 import { documentService, type DocumentItem } from "@/services/documentService";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { ModuleEditor } from "./ModuleEditor";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface ParentAssistantChatProps {
   promptSystemId: number;
@@ -27,68 +26,35 @@ interface ParentAssistantChatProps {
 }
 
 export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantChatProps) {
-  // System Data
   const [system, setSystem] = useState<PromptSystem | null>(null);
   const [modules, setModules] = useState<ModuleReference[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Instructions State
-  const [isEditingInstructions, setIsEditingInstructions] = useState(false);
-  const [editInstructions, setEditInstructions] = useState("");
-  const [savingInstructions, setSavingInstructions] = useState(false);
-
-  // Variables State
-  const [variables, setVariables] = useState<VariableDefinition[]>([]);
-
-  // Add Variable dialog state
-  const [addVarDialogOpen, setAddVarDialogOpen] = useState(false);
-  const [newVarName, setNewVarName] = useState("");
-  const [newVarLabel, setNewVarLabel] = useState("");
-  const [newVarDefault, setNewVarDefault] = useState("");
-  const [savingNewVar, setSavingNewVar] = useState(false);
-  const [addVarError, setAddVarError] = useState<string | null>(null);
-
-  // Runtime Variables
   const [runtimeVars, setRuntimeVars] = useState<Record<string, string>>({});
 
-  // Full Screen and Sidebar State
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-
-  // Exit fullscreen on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullScreen) {
-        setIsFullScreen(false);
-        setShowSidebar(true);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFullScreen]);
-  const [varsSaved, setVarsSaved] = useState(false);
-  const [isEditingVars, setIsEditingVars] = useState(true);
-
-  // Chat State
-  const [activeType, setActiveType] = useState<"parent" | "child">("parent");
-  const [activeChildId, setActiveChildId] = useState<number | null>(null);
+  const [allConversations, setAllConversations] = useState<Conversation[]>([]);
   const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [clearingChat, setClearingChat] = useState(false);
-  const [clearChatDialogOpen, setClearChatDialogOpen] = useState(false);
 
-  // Documents State
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [renamingChatId, setRenamingChatId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const [activeSubAssistantId, setActiveSubAssistantId] = useState<number | null>(null);
+
+  const [newChatModalOpen, setNewChatModalOpen] = useState(false);
+  const [newChatTitle, setNewChatTitle] = useState("");
+  const [newChatVars, setNewChatVars] = useState<Record<string, string>>({});
+  const [newChatErrors, setNewChatErrors] = useState<Record<string, string>>({});
+
   const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [docError, setDocError] = useState<string | null>(null);
+  const [attachedDocs, setAttachedDocs] = useState<DocumentItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Child Assistant Editor State
   const [isEditingChild, setIsEditingChild] = useState(false);
   const [childEditorMode, setChildEditorMode] = useState<"create" | "edit">("create");
   const [editingModule, setEditingModule] = useState<PromptModule | null>(null);
@@ -97,149 +63,53 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   const [childSaveError, setChildSaveError] = useState<string | null>(null);
   const [childSaveSuccess, setChildSaveSuccess] = useState(false);
 
-  // Child Assistant Delete State
-  const [deleteChildDialogOpen, setDeleteChildDialogOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false);
+  const [deleteDocError, setDeleteDocError] = useState<string | null>(null);
+
   const [childToDelete, setChildToDelete] = useState<ModuleReference | null>(null);
-  const [childDeleting, setChildDeleting] = useState(false);
-  const [childDeleteError, setChildDeleteError] = useState<string | null>(null);
+  const [isDeletingChild, setIsDeletingChild] = useState(false);
+  const [deleteChildError, setDeleteChildError] = useState<string | null>(null);
 
-  // Child Assistant Handlers
-  const handleOpenAddChild = () => {
-    setChildEditorMode("create");
-    setEditingModule(null);
-    setEditingModuleId(null);
-    setIsEditingChild(true);
-  };
+  const [isClearChatModalOpen, setIsClearChatModalOpen] = useState(false);
+  const [isClearingChat, setIsClearingChat] = useState(false);
+  const [clearChatError, setClearChatError] = useState<string | null>(null);
 
-  const handleOpenEditChild = async (modId: number) => {
-    try {
-      const mod = await moduleService.getById(modId);
-      setEditingModule(mod);
-      setEditingModuleId(mod.id);
-      setChildEditorMode("edit");
-      setIsEditingChild(true);
-    } catch (e: any) {
-      alert("Failed to load Child Assistant details.");
-    }
-  };
-
-  const handleSaveChild = async (payload: any) => {
-    setChildSaving(true);
-    setChildSaveError(null);
-    setChildSaveSuccess(false);
-
-    try {
-      if (childEditorMode === "create") {
-        // Create new module
-        const created = await moduleService.create(payload);
-        
-        // Associate with parent system
-        await moduleReferenceService.attach(promptSystemId, {
-          module_id: created.id,
-          enabled: true,
-          input_mapping: {},
-          output_mapping: {},
-        });
-        
-        setChildSaveSuccess(true);
-        setTimeout(() => setIsEditingChild(false), 500);
-      } else if (editingModuleId) {
-        // Update existing module
-        await moduleService.update(editingModuleId, payload);
-        setChildSaveSuccess(true);
-        setTimeout(() => setIsEditingChild(false), 500);
-      }
-      
-      // Reload modules list
-      const mods = await moduleReferenceService.list(promptSystemId);
-      setModules(mods.filter((m) => m.enabled));
-    } catch (e: any) {
-      setChildSaveError(e.message || "Failed to save Child Assistant.");
-    } finally {
-      setChildSaving(false);
-    }
-  };
-
-  const handleConfirmDeleteChild = async () => {
-    if (!childToDelete) return;
-    setChildDeleting(true);
-    setChildDeleteError(null);
-    
-    try {
-      const deletedModuleId = childToDelete.module_id;
-      const referenceId = childToDelete.id;
-
-      // 1. If the deleted module was currently active in chat, reset to parent first
-      if (activeType === "child" && activeChildId === deletedModuleId) {
-        setActiveType("parent");
-        setActiveChildId(null);
-        setMessages([]);
-        setCurrentConversation(null);
-        setDocuments([]);
-      }
-
-      // 2. Detach the module reference using referenceId (childToDelete.id)
-      if (referenceId) {
-        try {
-          await moduleReferenceService.remove(promptSystemId, referenceId);
-        } catch (refErr) {
-          console.warn("Module reference already detached or not found:", refErr);
-        }
-      }
-
-      // 3. Delete the underlying module if it exists
-      if (deletedModuleId) {
-        try {
-          await moduleService.delete(deletedModuleId);
-        } catch (modErr) {
-          console.warn("Underlying module already deleted or not found:", modErr);
-        }
-      }
-      
-      setDeleteChildDialogOpen(false);
-      setChildToDelete(null);
-      
-      // 4. Reload modules list for this prompt system
-      const mods = await moduleReferenceService.list(promptSystemId);
-      setModules(mods.filter((m) => m.enabled));
-    } catch (e: any) {
-      console.error("Failed to delete Child Assistant:", e);
-      setChildDeleteError(e.message || "Failed to delete Child Assistant.");
-    } finally {
-      setChildDeleting(false);
-    }
-  };
+  const isCreatingInitialChatRef = useRef(false);
 
   const loadDetails = useCallback(async () => {
     try {
       const sys = await promptSystemService.getById(promptSystemId);
       setSystem(sys);
-      setEditInstructions(sys.instructions || "");
-      setVariables(Array.isArray(sys.variables) ? sys.variables : []);
-      
-      const initialRuntimeVars: Record<string, string> = {};
-      if (Array.isArray(sys.variables)) {
-        sys.variables.forEach(v => {
-          const val = (v.default !== undefined && v.default !== null) ? String(v.default) : "";
-          initialRuntimeVars[v.name] = val;
-        });
-      }
-      setRuntimeVars(initialRuntimeVars);
 
       const mods = await moduleReferenceService.list(promptSystemId);
       setModules(mods.filter((m) => m.enabled));
-      
-      try {
-        const convs = await conversationsService.getConversations();
-        const latestParentConv = convs.find(c => c.prompt_system_id === promptSystemId && !c.module_id);
-        if (latestParentConv) {
-          setCurrentConversation(latestParentConv);
+
+      const convs = await conversationsService.getConversations();
+      const parentConvs = convs.filter(c => c.prompt_system_id === promptSystemId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setAllConversations(parentConvs);
+
+      if (parentConvs.length > 0) {
+        setCurrentConversation(parentConvs[0]);
+        setRuntimeVars(parentConvs[0].variables || {});
+      } else if (!isCreatingInitialChatRef.current) {
+        isCreatingInitialChatRef.current = true;
+        try {
+          const conv = await conversationsService.createConversation({
+            title: sys.name,
+            prompt_system_id: promptSystemId,
+            variables: {}
+          });
+          setAllConversations([conv]);
+          setCurrentConversation(conv);
+          setRuntimeVars({});
+        } catch (createErr) {
+          console.error("Failed to create initial conversation:", createErr);
+          isCreatingInitialChatRef.current = false;
         }
-      } catch(e) {
-        console.error("Failed to load history", e);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to load Parent Assistant details");
+      setError(err.message || "Failed to load details");
     } finally {
       setLoading(false);
     }
@@ -250,196 +120,72 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     loadDetails();
   }, [loadDetails]);
 
-  // Load Documents
-  const loadDocuments = useCallback(async () => {
-    try {
-      const docs = await documentService.listDocuments(
-        promptSystemId,
-        activeType === "child" ? activeChildId : null,
-        activeType === "parent"
-      );
-      setDocuments(docs);
-    } catch (err) {
-      console.error("Failed to load documents", err);
-    }
-  }, [promptSystemId, activeType, activeChildId]);
-
-  useEffect(() => {
-    loadDocuments();
-  }, [loadDocuments]);
-
-  // Load Conversation
   useEffect(() => {
     async function loadConversation() {
-      try {
-        const allConvs = await conversationsService.getConversations();
-        let targetConv = null;
-        if (activeType === "parent") {
-          targetConv = allConvs.find(c => c.prompt_system_id === promptSystemId && !c.module_id);
-        } else {
-          targetConv = allConvs.find(c => c.module_id === activeChildId);
-        }
-        
-        if (targetConv) {
-          setCurrentConversation(targetConv);
-          const msgs = await conversationsService.getMessages(targetConv.id);
+      if (currentConversation) {
+        try {
+          const msgs = await conversationsService.getMessages(currentConversation.id);
           setMessages(msgs);
-        } else {
-          setCurrentConversation(null);
-          setMessages([]);
+        } catch (err) {
+          console.error("Failed to load messages", err);
         }
-      } catch (err) {
-        console.error("Failed to load conversation", err);
+      } else {
+        setMessages([]);
       }
     }
     if (!loading) {
       loadConversation();
     }
-  }, [activeType, activeChildId, promptSystemId, loading]);
+  }, [currentConversation, loading]);
 
-  // Update Variables when switching active type
   useEffect(() => {
-    if (loading) return;
-    
-    let targetVars: VariableDefinition[] = [];
-    if (activeType === "parent") {
-      targetVars = variables;
-    } else {
-      const activeModRef = modules.find(m => m.module_id === activeChildId);
-      targetVars = (activeModRef?.module_variables as VariableDefinition[]) || [];
+    if (!loading) {
+      let targetVars = Array.isArray(system?.variables) ? system?.variables : [];
+      if (activeSubAssistantId) {
+        const activeModRef = modules.find(m => m.module_id === activeSubAssistantId);
+        if (activeModRef && activeModRef.module_variables) {
+          targetVars = [...targetVars, ...(activeModRef.module_variables as any[])];
+        }
+      }
+      const newRuntimeVars: Record<string, string> = { ...runtimeVars };
+      targetVars.forEach(v => {
+        if (!(v.name in newRuntimeVars)) {
+          newRuntimeVars[v.name] = "";
+        }
+      });
+      setRuntimeVars(newRuntimeVars);
     }
+  }, [activeSubAssistantId, system, modules, loading]);
 
-    const initialRuntimeVars: Record<string, string> = {};
-    let hasSavedValue = false;
-    
-    targetVars.forEach(v => {
-      const val = (v.default !== undefined && v.default !== null) ? String(v.default) : "";
-      initialRuntimeVars[v.name] = val;
-      if (val) hasSavedValue = true;
-    });
+  const loadAttachedDocs = useCallback(async () => {
+    try {
+      const docs = await documentService.listDocuments(promptSystemId, activeSubAssistantId ?? null, currentConversation?.id, activeSubAssistantId === null);
+      setAttachedDocs(docs);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [promptSystemId, activeSubAssistantId, currentConversation?.id]);
 
-    setRuntimeVars(initialRuntimeVars);
-    setIsEditingVars(!hasSavedValue);
-  }, [activeType, activeChildId, variables, modules, loading]);
+  useEffect(() => {
+    loadAttachedDocs();
+  }, [loadAttachedDocs]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, sending]);
 
-  // --- Handlers: Instructions ---
-  const handleSaveInstructions = async () => {
-    if (!system) return;
-    setSavingInstructions(true);
+  const handleStartNewConversation = async (fallbackTitle?: string | React.MouseEvent, variables?: Record<string, string>) => {
     try {
-      const updated = await promptSystemService.update(system.id, { instructions: editInstructions });
-      setSystem(updated);
-      setIsEditingInstructions(false);
-    } catch (err: any) {
-      alert(err.message || "Failed to save instructions");
-    } finally {
-      setSavingInstructions(false);
-    }
-  };
-
-  // --- Handlers: Add Variable ---
-  const handleAddNewVariable = async () => {
-    if (!newVarName.trim()) {
-      setAddVarError("Variable name is required");
-      return;
-    }
-    const cleanName = newVarName.trim().replace(/[^a-zA-Z0-9_]/g, "_");
-    setSavingNewVar(true);
-    setAddVarError(null);
-    try {
-      const activeModRef = activeType === "child" ? modules.find(m => m.module_id === activeChildId) : null;
-      const currentVars = activeType === "parent"
-        ? variables
-        : (activeModRef?.module_variables as VariableDefinition[] || []);
-
-      if (currentVars.some(v => v.name.toLowerCase() === cleanName.toLowerCase())) {
-        setAddVarError(`Variable "${cleanName}" already exists`);
-        setSavingNewVar(false);
-        return;
-      }
-
-      const newDef: VariableDefinition = {
-        name: cleanName,
-        label: newVarLabel.trim() || cleanName,
-        type: "string",
-        default: newVarDefault,
-        required: false,
-      };
-
-      const updated = [...currentVars, newDef];
-
-      if (activeType === "parent") {
-        if (!system) return;
-        await promptSystemService.updateVariables(system.id, updated);
-        setVariables(updated);
-      } else {
-        if (!activeChildId) return;
-        await moduleService.update(activeChildId, { variables: updated });
-        const mods = await moduleReferenceService.list(promptSystemId);
-        setModules(mods.filter((m) => m.enabled));
-      }
-
-      setRuntimeVars(prev => ({ ...prev, [cleanName]: newVarDefault }));
-      setNewVarName("");
-      setNewVarLabel("");
-      setNewVarDefault("");
-      setAddVarDialogOpen(false);
-    } catch (err: any) {
-      setAddVarError(err.message || "Failed to add variable");
-    } finally {
-      setSavingNewVar(false);
-    }
-  };
-
-
-  // --- Handlers: Documents ---
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setUploadingDoc(true);
-      setDocError(null);
-      try {
-        await documentService.uploadDocument(
-          file,
-          promptSystemId,
-          activeType === "child" ? activeChildId : null
-        );
-        await loadDocuments();
-      } catch (err: any) {
-        setDocError(err.message || "Upload failed");
-      } finally {
-        setUploadingDoc(false);
-        e.target.value = "";
-      }
-    }
-  };
-
-  const handleRemoveDoc = async (documentId: string) => {
-    setUploadingDoc(true);
-    setDocError(null);
-    try {
-      await documentService.deleteDocument(documentId);
-      await loadDocuments();
-    } catch (err: any) {
-      setDocError(err.message || "Delete failed");
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
-
-  // --- Handlers: Chat ---
-  const handleStartNewConversation = async () => {
-    try {
+      const titleString = typeof fallbackTitle === 'string' ? fallbackTitle : (system?.name || "New Chat");
+      const convVars = variables || {};
       const conv = await conversationsService.createConversation({
-        title: "New Conversation",
-        prompt_system_id: activeType === "parent" ? promptSystemId : undefined,
-        module_id: activeType === "child" ? activeChildId! : undefined,
+        title: titleString,
+        prompt_system_id: promptSystemId,
+        variables: convVars,
       });
+      setAllConversations([conv, ...allConversations]);
       setCurrentConversation(conv);
+      setRuntimeVars(convVars);
       setMessages([]);
       setChatError(null);
     } catch (err: any) {
@@ -447,22 +193,164 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     }
   };
 
-  const handleClearChat = async () => {
-    setClearingChat(true);
+  const handleRenameChat = async (e: React.FormEvent, conv: Conversation) => {
+    e.preventDefault();
+    if (!renameValue.trim()) {
+      setRenamingChatId(null);
+      return;
+    }
     try {
-      if (currentConversation) {
-        await conversationsService.deleteConversation(currentConversation.id);
-        setCurrentConversation(null);
+      const updated = await conversationsService.updateConversation(conv.id, { title: renameValue });
+      setAllConversations(allConversations.map(c => c.id === conv.id ? updated : c));
+      if (currentConversation?.id === conv.id) setCurrentConversation(updated);
+      setRenamingChatId(null);
+    } catch (err) {
+      console.error(err);
+      setRenamingChatId(null);
+    }
+  };
+
+  const handleDeleteChat = async (e: React.MouseEvent, conv: Conversation) => {
+    e.stopPropagation();
+    try {
+      await conversationsService.deleteConversation(conv.id);
+      const newConvs = allConversations.filter(c => c.id !== conv.id);
+      setAllConversations(newConvs);
+      if (currentConversation?.id === conv.id) {
+        const nextConv = newConvs.length > 0 ? newConvs[0] : null;
+        setCurrentConversation(nextConv);
+        if (nextConv) {
+           setRuntimeVars(nextConv.variables || {});
+        } else {
+           handleStartNewConversation(system?.name);
+        }
       }
-      setMessages([]);
-      setChatError(null);
-      setClearChatDialogOpen(false);
-    } catch (err: any) {
-      console.error("Failed to clear conversation:", err);
-      setMessages([]);
-      setClearChatDialogOpen(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSelectConversation = (conv: Conversation) => {
+    if (renamingChatId === conv.id) return;
+    setCurrentConversation(conv);
+    setRuntimeVars(conv.variables || {});
+  };
+
+  const handleOpenAddChild = () => {
+    setChildEditorMode("create");
+    setEditingModule(null);
+    setEditingModuleId(null);
+    setIsEditingChild(true);
+  };
+
+  const handleSaveChild = async (payload: any) => {
+    setChildSaving(true);
+    setChildSaveError(null);
+    setChildSaveSuccess(false);
+
+    try {
+      if (childEditorMode === "create") {
+        const created = await moduleService.create(payload);
+        await moduleReferenceService.attach(promptSystemId, {
+          module_id: created.id,
+          enabled: true,
+          input_mapping: {},
+          output_mapping: {},
+        });
+        setChildSaveSuccess(true);
+        setTimeout(() => setIsEditingChild(false), 500);
+      } else if (editingModuleId) {
+        await moduleService.update(editingModuleId, payload);
+        setChildSaveSuccess(true);
+        setTimeout(() => setIsEditingChild(false), 500);
+      }
+
+      const mods = await moduleReferenceService.list(promptSystemId);
+      setModules(mods.filter((m) => m.enabled));
+    } catch (e: any) {
+      setChildSaveError(e.message || "Failed to save Sub Assistant.");
     } finally {
-      setClearingChat(false);
+      setChildSaving(false);
+    }
+  };
+
+  const handleEditChild = async (modRef: ModuleReference) => {
+    try {
+      const fullModule = await moduleService.getById(modRef.module_id);
+      setEditingModule(fullModule);
+      setEditingModuleId(modRef.module_id);
+      setChildEditorMode("edit");
+      setIsEditingChild(true);
+    } catch (e: any) {
+      console.error("Failed to load module for editing:", e);
+    }
+  };
+
+  const confirmDeleteChild = async () => {
+    if (!childToDelete) return;
+    setIsDeletingChild(true);
+    setDeleteChildError(null);
+    try {
+      await moduleReferenceService.remove(promptSystemId, childToDelete.id);
+      await moduleService.delete(childToDelete.module_id);
+      setModules(modules.filter(m => m.module_id !== childToDelete.module_id));
+      if (activeSubAssistantId === childToDelete.module_id) setActiveSubAssistantId(null);
+      setChildToDelete(null);
+    } catch (e: any) {
+      setDeleteChildError(e.message || "Failed to delete Sub Assistant.");
+    } finally {
+      setIsDeletingChild(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setUploadingDoc(true);
+      try {
+        await documentService.uploadDocument(
+          file,
+          promptSystemId,
+          activeSubAssistantId ?? null,
+          currentConversation?.id ?? null
+        );
+        loadAttachedDocs();
+      } catch (err: any) {
+        alert(err.message || "Upload failed");
+      } finally {
+        setUploadingDoc(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const confirmDeleteDoc = async () => {
+    if (!docToDelete) return;
+    setIsDeletingDoc(true);
+    setDeleteDocError(null);
+    try {
+      await documentService.deleteDocument(docToDelete.id);
+      loadAttachedDocs();
+      setDocToDelete(null);
+    } catch (e: any) {
+      setDeleteDocError(e.message || "Failed to delete document");
+    } finally {
+      setIsDeletingDoc(false);
+    }
+  };
+
+  const confirmClearChat = async () => {
+    if (!currentConversation) return;
+    setIsClearingChat(true);
+    setClearChatError(null);
+    try {
+      await conversationsService.clearMessages(currentConversation.id);
+      setMessages([]);
+      setIsClearChatModalOpen(false);
+    } catch (e: any) {
+      setClearChatError(e.message || "Failed to clear chat.");
+    } finally {
+      setIsClearingChat(false);
     }
   };
 
@@ -474,12 +362,11 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       try {
         conv = await conversationsService.createConversation({
           title: input.slice(0, 30) + "...",
-          prompt_system_id: activeType === "parent" ? promptSystemId : undefined,
-          module_id: activeType === "child" ? activeChildId! : undefined,
+          prompt_system_id: promptSystemId,
         });
+        setAllConversations([conv, ...allConversations]);
         setCurrentConversation(conv);
       } catch (err: any) {
-        console.error("Failed to create conversation:", err, err.data);
         setChatError(`Failed to create conversation: ${err.message || "Unknown error"}`);
         return;
       }
@@ -500,99 +387,77 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     setChatError(null);
 
     try {
-      // Create user message in DB
       await conversationsService.createMessage(conv.id, "user", userMessageContent);
 
-      // Fetch scoped document context for current assistant scope
       let docContextText = "";
       try {
         const docCtx = await documentService.getScopeContext(
           promptSystemId,
-          activeType === "child" ? activeChildId : null
+          activeSubAssistantId ?? null,
+          conv.id
         );
         if (docCtx.context_text) {
-          docContextText = `[Grounding Documents Context - Isolated Assistant Scope]\n${docCtx.context_text}\n\n`;
+          docContextText = `[Grounding Documents Context - Isolated Scope]\n${docCtx.context_text}\n\n`;
         }
       } catch (e) {
         console.warn("Failed to fetch document context", e);
       }
 
-      // Construct LLM payload context
-      let combinedQuestion = "";
-      
-      if (activeType === "child" && activeChildId) {
-        // Use Context API for Child Assistants
-        const context = await conversationsService.getAssistantContext(activeChildId, conv.id);
-        
-        let promptPrefix = `[Assistant Scope: Child Assistant (Module #${activeChildId})]\n`;
+      let promptPrefix = "";
+
+      if (activeSubAssistantId) {
+        const context = await conversationsService.getAssistantContext(activeSubAssistantId, conv.id);
+
+        promptPrefix = `[Assistant Scope: Sub Assistant (Module #${activeSubAssistantId})]\n`;
         if (context.parent_instructions) {
           promptPrefix += `[Parent System Instructions]\n${context.parent_instructions}\n\n`;
         }
         if (context.current_child_instructions) {
-          promptPrefix += `[Child Module Instructions]\n${context.current_child_instructions}\n\n`;
-        }
-        
-        const parentVars = context.parent_context?.variables || [];
-        if (parentVars.length > 0) {
-           promptPrefix += `[Parent Variables]\n${JSON.stringify(parentVars, null, 2)}\n\n`;
-        }
-        
-        const childVars = Object.entries(runtimeVars);
-        if (childVars.length > 0) {
-          promptPrefix += `[Child Variables]\n${childVars.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
-        }
-        
-        // Add previous conversations context
-        if (context.previous_child_context && context.previous_child_context.length > 0) {
-           promptPrefix += `[Previous Child Conversations]\n${JSON.stringify(context.previous_child_context, null, 2)}\n\n`;
+          promptPrefix += `[Sub Assistant Instructions]\n${context.current_child_instructions}\n\n`;
         }
 
-        // Add scoped documents context
-        if (docContextText) {
-          promptPrefix += docContextText;
+        const parentVars = context.parent_context?.variables || [];
+        if (parentVars.length > 0) {
+          promptPrefix += `[Parent Variables]\n${JSON.stringify(parentVars, null, 2)}\n\n`;
         }
-        
-        promptPrefix += `[User Message]\n`;
-        combinedQuestion = `${promptPrefix}${userMessageContent}`;
+
+        const childVars = Object.entries(runtimeVars);
+        if (childVars.length > 0) {
+          promptPrefix += `[Active Variables]\n${childVars.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
+        }
+
+        if (context.previous_child_context && context.previous_child_context.length > 0) {
+          promptPrefix += `[Previous Conversations Context]\n${JSON.stringify(context.previous_child_context, null, 2)}\n\n`;
+        }
       } else {
-        // Manual context for Parent Assistant
-        let promptPrefix = `[Assistant Scope: Parent Assistant (System #${promptSystemId})]\n`;
+        promptPrefix = `[Assistant Scope: Parent Assistant (System #${promptSystemId})]\n`;
         if (system.instructions) {
           promptPrefix += `[System Instructions]\n${system.instructions}\n\n`;
         }
-        
+
         const varEntries = Object.entries(runtimeVars);
         if (varEntries.length > 0) {
           promptPrefix += `[Variables]\n${varEntries.map(([k, v]) => `${k}: ${v}`).join("\n")}\n\n`;
         }
-
-        // Add scoped documents context
-        if (docContextText) {
-          promptPrefix += docContextText;
-        }
-
-        promptPrefix += `[User Message]\n`;
-
-        combinedQuestion = `${promptPrefix}${userMessageContent}`;
       }
 
-      // Call PromptForge integrated local RAG backend
-      const scopedSessionId = `pf_u${system.owner_id}_s${promptSystemId}_${activeType === "child" ? `m${activeChildId}` : "p"}_c${conv.id}`;
+      if (docContextText) {
+        promptPrefix += docContextText;
+      }
+      promptPrefix += `[User Message]\n`;
+      // We pass the userMessageContent directly to the endpoint as was done previously
+      const scopedSessionId = `pf_u${system.owner_id}_s${promptSystemId}_${activeSubAssistantId ? `m${activeSubAssistantId}` : "p"}_c${conv.id}`;
       const response = await ragApi.askQuestion(
         userMessageContent,
         scopedSessionId,
         conv.id,
         promptSystemId,
-        activeType === "child" && activeChildId ? activeChildId : undefined,
+        activeSubAssistantId || undefined,
         runtimeVars
       );
-      
-      const assistantMsgContent = response.answer;
 
-      // Save assistant message in DB
+      const assistantMsgContent = response.answer;
       const reply = await conversationsService.createMessage(conv.id, "assistant", assistantMsgContent);
-      
-      // Update UI
       setMessages((prev) => [...prev, reply]);
     } catch (err: any) {
       setChatError(err.message || "Failed to get AI response");
@@ -613,7 +478,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
     return (
       <div className="flex h-full flex-col items-center justify-center">
         <Alert variant="destructive" className="max-w-md">
-          <AlertDescription>{error || "Prompt System not found."}</AlertDescription>
+          <AlertDescription>{error || "Assistant not found."}</AlertDescription>
         </Alert>
         <Button onClick={onBack} className="mt-4" variant="outline">
           Back to Library
@@ -624,7 +489,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
 
   if (isEditingChild) {
     return (
-      <div className="h-[calc(100vh-60px)] overflow-y-auto">
+      <div className="h-full overflow-y-auto">
         <ModuleEditor
           module={editingModule}
           moduleId={editingModuleId}
@@ -641,558 +506,397 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   }
 
   return (
-    <div className={`flex flex-col md:flex-row bg-background overflow-hidden ${
-      isFullScreen
-        ? "fixed inset-0 z-50 h-screen w-screen"
-        : "h-[calc(100vh-53px)] max-h-[calc(100vh-53px)]"
-    }`}>
-      {/* LEFT / MIDDLE PANEL: Details & Documents */}
-      {showSidebar && (
-        <aside className="w-full border-r border-border/60 bg-muted/10 md:w-80 flex flex-col md:h-full max-md:max-h-[50vh] overflow-hidden shrink-0">
-        <div className="p-4 border-b border-border/60 shrink-0 bg-background/95 backdrop-blur z-10">
-          <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 mb-2 text-muted-foreground w-full justify-start hover:bg-muted/50">
-            <ArrowLeft className="mr-2 size-4" />
-            Back to Home
+    <div className="flex h-screen w-full bg-background overflow-hidden text-foreground">
+      {/* Sidebar */}
+      <aside className="w-[280px] border-r border-border/60 bg-muted/10 flex flex-col shrink-0">
+        <div className="p-4 border-b border-border/60">
+          <Button onClick={onBack} variant="ghost" className="mb-4 text-muted-foreground w-full justify-start -ml-2 hover:bg-muted/50">
+            <ArrowLeft className="mr-2 size-4" /> Back to Library
           </Button>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">{system.name}</h2>
-          <span className="inline-flex mt-2 items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors bg-primary/10 text-primary border-primary/20">
-            Assistant
-          </span>
+          <div className="flex items-center gap-2 px-1">
+            <div className="bg-primary/10 p-1.5 rounded text-primary">
+              <Bot className="size-5" />
+            </div>
+            <h2 className="text-lg font-bold">{system.name}</h2>
+          </div>
         </div>
 
-        <div className="p-4 space-y-6 flex-1 overflow-y-auto min-h-0">
-          {/* Details Section */}
-          <section className="space-y-4">
-            <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</h3>
-              <p className="text-sm text-foreground">{system.description || "No description provided."}</p>
-            </div>
-            
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Instructions</h3>
-                {!isEditingInstructions ? (
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsEditingInstructions(true)}>
-                    <Edit2 className="size-3" />
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => { setIsEditingInstructions(false); setEditInstructions(system.instructions || ""); }}>
-                      <X className="size-3" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-success" onClick={handleSaveInstructions} disabled={savingInstructions}>
-                      {savingInstructions ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {!isEditingInstructions ? (
-                <p className="text-xs text-muted-foreground bg-muted/40 p-2 rounded-md border border-border/50 line-clamp-6 whitespace-pre-wrap">
-                  {system.instructions || "No instructions provided."}
-                </p>
-              ) : (
-                <Textarea 
-                  value={editInstructions}
-                  onChange={(e) => setEditInstructions(e.target.value)}
-                  className="text-xs min-h-[120px]"
-                />
-              )}
-            </div>
+        <div className="p-4 flex flex-col flex-1 overflow-hidden">
+          <Button className="w-full mb-6 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm" onClick={() => {
+            setNewChatTitle("");
+            const initialVars: Record<string, string> = {};
+            if (Array.isArray(system?.variables)) {
+              system.variables.forEach(v => {
+                initialVars[v.name] = v.type === "boolean" ? "false" : "";
+              });
+            }
+            setNewChatVars(initialVars);
+            setNewChatErrors({});
+            setNewChatModalOpen(true);
+          }}>
+            <Plus className="mr-2 size-4" /> New Chat
+          </Button>
 
-            {(() => {
-              const activeModRef = activeType === "child" ? modules.find(m => m.module_id === activeChildId) : null;
-              const activeVariables = activeType === "parent" 
-                ? variables 
-                : (activeModRef?.module_variables as VariableDefinition[] || []);
-
-              return (
-                <div className="mt-4 pt-4 border-t border-border/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <span>{activeType === "parent" ? "Parent Variables" : "Child Variables"}</span>
-                      {activeVariables.length > 0 && (
-                        <span className="bg-primary/10 text-primary px-1.5 py-0.2 rounded-full text-[9px] font-mono">
-                          {activeVariables.length}
-                        </span>
-                      )}
-                    </h3>
-                    <div className="flex items-center gap-1">
-                      {activeVariables.length > 0 && !isEditingVars && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setIsEditingVars(true)}
-                          title="Edit Variable Values"
-                        >
-                          <Edit2 className="size-3" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                        onClick={() => {
-                          setAddVarError(null);
-                          setNewVarName("");
-                          setNewVarLabel("");
-                          setNewVarDefault("");
-                          setAddVarDialogOpen(true);
-                        }}
-                        title={`Add ${activeType === "parent" ? "Parent" : "Child"} Variable`}
-                      >
-                        <Plus className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {activeVariables.length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddVarError(null);
-                        setNewVarName("");
-                        setNewVarLabel("");
-                        setNewVarDefault("");
-                        setAddVarDialogOpen(true);
-                      }}
-                      className="w-full rounded-lg border border-dashed border-border/60 py-2.5 px-3 text-center text-xs text-muted-foreground hover:border-primary/50 hover:bg-muted/30 hover:text-foreground transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <Plus className="size-3" />
-                      <span>Add Variable</span>
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      {activeVariables.map(v => (
-                        <div key={`runtime-${v.name}`} className="space-y-1">
-                          <label className="text-xs text-muted-foreground">{v.label || v.name}</label>
-                          {isEditingVars ? (
-                            <Input 
-                              value={runtimeVars[v.name] || ""} 
-                              onChange={(e) => setRuntimeVars(prev => ({ ...prev, [v.name]: e.target.value }))}
-                              className="h-7 text-xs bg-card"
-                            />
-                          ) : (
-                            <div className="text-sm font-medium text-foreground bg-muted/30 p-1.5 rounded border border-border/40 min-h-[28px] break-words">
-                              {runtimeVars[v.name] || <span className="text-muted-foreground italic text-xs">Not provided</span>}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      {isEditingVars && (
-                        <Button 
-                          size="sm" 
-                          variant={varsSaved ? "secondary" : "default"}
-                          className="w-full mt-2 h-7 text-xs transition-all" 
-                          disabled={varsSaved}
-                          onClick={async () => {
-                            try {
-                              const updatedVariables = activeVariables.map(v => ({
-                                ...v,
-                                default: runtimeVars[v.name] || v.default
-                              }));
-                              
-                              if (activeType === "parent") {
-                                if (!system) return;
-                                await promptSystemService.updateVariables(system.id, updatedVariables);
-                                setVariables(updatedVariables);
-                              } else {
-                                if (!activeChildId) return;
-                                await moduleService.update(activeChildId, { variables: updatedVariables });
-                                // Reload modules to update module_variables
-                                const mods = await moduleReferenceService.list(promptSystemId);
-                                setModules(mods.filter((m) => m.enabled));
-                              }
-                              
-                              setVarsSaved(true);
-                              setTimeout(() => {
-                                setVarsSaved(false);
-                                setIsEditingVars(false);
-                              }, 500);
-                            } catch (err: any) {
-                              alert(err.message || "Failed to save variables to database");
-                            }
-                          }}
-                        >
-                          {varsSaved ? (
-                            <><Check className="mr-1.5 size-3 text-success" /> Submitted</>
-                          ) : (
-                            "Submit Variables"
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </section>
-
-          {/* Sub Assistants Section */}
-          <section>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center justify-between">
-              Sub Assistants
-              <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[9px]">{modules.length}</span>
-            </h3>
-            <div className="space-y-1.5">
-              <button
-                onClick={() => { setActiveType("parent"); setActiveChildId(null); }}
-                className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-all border ${
-                  activeType === "parent" 
-                    ? "bg-primary text-primary-foreground border-primary shadow-sm" 
-                    : "bg-card hover:bg-accent border-border/50 text-foreground"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Bot className="size-4" />
-                  <span className="font-medium truncate">{system.name} (Assistant)</span>
-                </div>
-              </button>
-              
-              {modules.map((mod) => (
-                <div key={mod.id} className="group relative flex items-center">
-                  <button
-                    onClick={() => { setActiveType("child"); setActiveChildId(mod.module_id); }}
-                    className={`flex-1 text-left rounded-lg px-3 py-2 pr-16 text-sm transition-all border ${
-                      activeType === "child" && activeChildId === mod.module_id 
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm" 
-                        : "bg-card hover:bg-accent border-border/50 text-foreground opacity-60 hover:opacity-100"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Zap className="size-3.5 opacity-70 shrink-0" />
-                      <div className="min-w-0">
-                        <span className="font-medium truncate block">{mod.module_name || `Module #${mod.module_id}`}</span>
-                      </div>
-                    </div>
-                  </button>
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 h-7 w-7 text-muted-foreground hover:text-foreground bg-background/50 backdrop-blur"
-                      onClick={() => handleOpenEditChild(mod.module_id)}
-                      title="Edit Sub Assistant"
-                    >
-                      <Edit2 className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 h-7 w-7 text-muted-foreground hover:text-destructive bg-background/50 backdrop-blur"
-                      onClick={() => {
-                        setChildToDelete(mod);
-                        setDeleteChildDialogOpen(true);
-                      }}
-                      title="Delete Sub Assistant"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2 border-dashed h-8 text-xs text-muted-foreground"
-                onClick={handleOpenAddChild}
-              >
-                <Plus className="mr-1.5 size-3" /> Add Sub Assistant
-              </Button>
-            </div>
-          </section>
-
-          {/* Documents Section */}
-          <section className="border-t border-border/60 pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Documents</h3>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-6 rounded-full h-6 w-6"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingDoc}
-                title="Upload PDF"
-              >
-                {uploadingDoc ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-              </Button>
-              <input type="file" ref={fileInputRef} className="hidden" accept=".pdf" onChange={handleFileUpload} />
-            </div>
-
-            {docError && (
-              <Alert variant="destructive" className="mb-2 py-2 px-3 h-auto min-h-0 text-xs">
-                <AlertDescription className="text-xs">{docError}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-2">
-              {documents.length === 0 ? (
-                <div
-                  className="flex flex-col items-center justify-center p-4 border border-dashed border-border/60 rounded-lg bg-muted/20 text-center cursor-pointer hover:bg-muted/30 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="size-4 text-muted-foreground mb-1" />
-                  <span className="text-[10px] text-muted-foreground">Upload PDF for context</span>
-                </div>
-              ) : (
-                documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-card/50">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText className="size-3.5 text-primary shrink-0" />
-                      <div className="overflow-hidden">
-                        <span className="text-xs truncate font-medium block" title={doc.filename}>{doc.filename}</span>
-                        <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground">
-                          <span>{new Date(doc.created_at).toLocaleDateString()}</span>
-                          <span>•</span>
-                          <span>{doc.module_id ? "Sub Assistant" : "Assistant"}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-5 hover:bg-destructive/20 hover:text-destructive shrink-0"
-                      onClick={() => handleRemoveDoc(doc.id)}
-                      disabled={uploadingDoc}
-                      title="Delete Document"
-                    >
-                      {uploadingDoc ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      </aside>
-    )}
-
-      {/* RIGHT PANEL: Chatbot */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-card/30 relative">
-        {/* Chat Header */}
-        <header className="border-b border-border/60 bg-background/95 backdrop-blur px-6 py-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-              {activeType === "parent" ? <Bot className="size-4.5" /> : <Zap className="size-4.5" />}
-            </div>
-            <div>
-              <h2 className="text-base font-semibold leading-none">
-                {activeType === "parent" ? system.name : modules.find(m => m.module_id === activeChildId)?.module_name || "Sub Assistant"}
-              </h2>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {activeType === "parent" ? "Assistant Chat" : "Sub Assistant Chat"}
-              </p>
-            </div>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h3 className="text-sm font-semibold">Chats</h3>
+            <Search className="size-4 text-muted-foreground" />
           </div>
 
-          {/* Right Header Actions: Clear Chat, Sidebar Toggle & Fullscreen / Short Screen */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40 transition-colors"
-              onClick={() => setClearChatDialogOpen(true)}
-              disabled={clearingChat || messages.length === 0}
-              title={`Clear ${activeType === "parent" ? "Assistant" : "Sub Assistant"} Chat`}
-            >
-              {clearingChat ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-              <span>Clear Chat</span>
-            </Button>
+          <div className="flex-1 overflow-y-auto space-y-1 pr-2">
+            {allConversations.map(conv => (
+              <div
+                key={conv.id}
+                className={`p-3 rounded-lg cursor-pointer flex justify-between items-start transition-colors ${currentConversation?.id === conv.id ? "bg-primary/10 text-primary" : "hover:bg-muted/50 text-foreground"}`}
+                onClick={() => handleSelectConversation(conv)}
+              >
+                <div className="overflow-hidden pr-2 flex-1">
+                  {renamingChatId === conv.id ? (
+                    <form onSubmit={(e) => handleRenameChat(e, conv)} onClick={(e) => e.stopPropagation()} className="flex items-center gap-2">
+                      <Input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        className="h-6 text-sm px-1 py-0 w-full"
+                        autoFocus
+                        onBlur={(e) => handleRenameChat(e as any, conv)}
+                      />
+                    </form>
+                  ) : (
+                    <>
+                      <div className="font-medium text-sm flex items-center gap-2 truncate">
+                        <MessageSquare className="size-3.5 shrink-0" />
+                        <span className="truncate">{conv.title || "New Chat"}</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-1 ml-5.5">
+                        {new Date(conv.created_at).toLocaleDateString()} {new Date(conv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground shrink-0 p-0 ml-1">
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-32">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenamingChatId(conv.id);
+                        setRenameValue(conv.title || "");
+                      }}
+                    >
+                      <Edit2 className="size-4 mr-2" />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => handleDeleteChat(e as any, conv)}
+                      className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
+                    >
+                      <Trash2 className="size-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setShowSidebar((prev) => !prev)}
-              title={showSidebar ? "Hide sidebar" : "Show sidebar"}
-            >
-              {showSidebar ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-              <span className="hidden sm:inline">{showSidebar ? "Hide Sidebar" : "Show Sidebar"}</span>
-            </Button>
-
-            <Button
-              variant={isFullScreen ? "secondary" : "outline"}
-              size="sm"
-              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                if (!isFullScreen) {
-                  setIsFullScreen(true);
-                  setShowSidebar(false);
-                } else {
-                  setIsFullScreen(false);
-                  setShowSidebar(true);
-                }
-              }}
-              title={isFullScreen ? "Short Screen (Exit Full Screen)" : "Full Screen"}
-            >
-              {isFullScreen ? (
-                <>
-                  <Minimize2 className="size-4" />
-                  <span className="hidden sm:inline">Short Screen</span>
-                </>
-              ) : (
-                <>
-                  <Maximize2 className="size-4" />
-                  <span className="hidden sm:inline">Full Screen</span>
-                </>
-              )}
-            </Button>
+      {/* Main Chat Area */}
+      <div className="flex flex-1 flex-col overflow-hidden bg-background">
+        {/* Header */}
+        <header className="h-14 border-b border-border/60 bg-background flex items-center justify-between px-6 shrink-0">
+          <h2 className="text-lg font-bold">{system.name}</h2>
+          <div className="flex items-center">
+            <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-full pl-1 pr-3 py-1 text-sm font-medium">
+              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">Y</span>
+              Yogesh
+              <ChevronDown className="size-3.5 ml-1" />
+            </div>
           </div>
         </header>
 
+        {/* Sub Assistants Bar */}
+        <div className="px-6 py-3 border-b border-border/60 bg-background flex items-center gap-3 overflow-x-auto shrink-0 shadow-sm z-10">
+          <span className="text-sm font-bold text-foreground whitespace-nowrap">Sub Assistants:</span>
+          {modules.map(mod => {
+            const isActive = activeSubAssistantId === mod.module_id;
+            return (
+              <div
+                key={mod.id}
+                className={`flex items-center rounded-full transition-all border ${isActive ? "bg-primary text-primary-foreground shadow-md hover:bg-primary/90 border-primary" : "bg-muted/60 hover:bg-muted text-foreground border-border"}`}
+              >
+                <button
+                  type="button"
+                  className="flex items-center h-8 px-3 rounded-l-full text-sm font-medium"
+                  onClick={() => setActiveSubAssistantId(isActive ? null : mod.module_id)}
+                >
+                  {isActive ? <Send className="mr-1.5 size-3.5" /> : <RefreshCw className="mr-1.5 size-3.5" />}
+                  {mod.module_name}
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className={`h-8 px-2 rounded-r-full flex items-center justify-center opacity-70 hover:opacity-100 ${isActive ? "hover:bg-primary-foreground/20" : "hover:bg-foreground/10"}`}>
+                      <MoreHorizontal className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-32">
+                    <DropdownMenuItem onClick={() => handleEditChild(mod)}>
+                      <Edit2 className="size-4 mr-2" /> Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setChildToDelete(mod)} className="text-destructive focus:bg-destructive focus:text-destructive-foreground">
+                      <Trash2 className="size-4 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          })}
+          <Button variant="outline" size="sm" className="rounded-full whitespace-nowrap text-primary border-primary/20 hover:bg-primary/10 bg-transparent h-8 px-4 ml-1" onClick={handleOpenAddChild}>
+            <Plus className="mr-1 size-3.5" /> New Sub Assistant
+          </Button>
+          <div className="ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8"
+              onClick={() => setIsClearChatModalOpen(true)}
+              disabled={sending || messages.length === 0}
+            >
+              <Trash2 className="size-4 mr-1.5" />
+              Clear Chat
+            </Button>
+          </div>
+        </div>
+
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 relative">
-
-          {messages.length === 0 && !sending ? (
-            <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-              <div className="relative mb-5 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-amber-500/10 ring-1 ring-primary/30 shadow-xl shadow-primary/10">
-                <Bot className="size-8 text-primary" />
-                <div className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow">
-                  <Sparkles className="size-3" />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                {activeType === "parent" ? system.name : (modules.find(m => m.module_id === activeChildId)?.module_name || "Sub Assistant")}
-              </h3>
-              <p className="mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
-                {activeType === "parent"
-                  ? "Interact directly with your configured Assistant. It carries your instructions, runtime variables, and isolated grounding documents."
-                  : "Chatting with this Sub Assistant. It respects configured input boundaries and carries specialized module context."}
-              </p>
-
-              {/* Feature Tags */}
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-[11px] font-medium text-primary shadow-xs">
-                  <Sparkles className="size-3" /> Grounded RAG
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/5 px-3 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 shadow-xs">
-                  <Check className="size-3" /> Dynamic Context
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/40 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-xs">
-                  <Bot className="size-3" /> {activeType === "parent" ? "Assistant" : "Sub Assistant"}
-                </span>
-              </div>
-
-              {/* Quick Prompt Suggestions */}
-              <div className="mt-7 grid w-full max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-2 text-left">
-                {[
-                  "Summarize your instructions and goals",
-                  "What runtime variables are active?",
-                  "Draft a tailored outreach based on context",
-                  "Explain how your sub-assistants work together"
-                ].map((promptText, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setInput(promptText);
-                      setTimeout(() => {
-                        const inputEl = document.querySelector('input[type="text"]') as HTMLInputElement;
-                        inputEl?.focus();
-                      }, 50);
-                    }}
-                    className="group flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-3.5 text-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card hover:shadow-md"
-                  >
-                    <span className="font-medium text-foreground group-hover:text-primary transition-colors leading-snug">{promptText}</span>
-                    <span className="mt-2 text-[10px] text-muted-foreground flex items-center gap-1">
-                      Click to send <span className="transition-transform group-hover:translate-x-0.5">→</span>
-                    </span>
-                  </button>
-                ))}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-background">
+          {messages.map((msg, idx) => (
+            <div key={msg.id || idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className="flex max-w-[85%] md:max-w-[70%] gap-3">
+                {msg.role !== "user" && (
+                  <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <Bot className="size-4" />
+                  </div>
+                )}
+                {msg.role === "user" ? (
+                  <div className="rounded-2xl px-5 py-3 text-[15px] font-normal leading-relaxed bg-primary text-primary-foreground shadow-sm rounded-tr-sm">
+                    {msg.content}
+                    <div className="text-primary-foreground/70 text-[10px] mt-1 text-right">
+                      {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl px-5 py-3 text-[15px] font-normal leading-relaxed bg-card border border-border/60 text-foreground shadow-sm rounded-tl-sm">
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="flex items-center gap-2 text-muted-foreground text-[10px] mt-2 justify-end">
+                      {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          ) : (
-            messages.map((msg, idx) => (
-              <div key={msg.id || idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} pf-fade`}>
-                <div className="flex max-w-[85%] md:max-w-[75%] gap-3">
-                  {msg.role !== "user" && (
-                    <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary border border-primary/20 shadow-xs">
-                      <Bot className="size-3.5" />
-                    </div>
-                  )}
-                  <div className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm leading-relaxed ${
-                    msg.role === "user" 
-                      ? "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-primary/15 rounded-tr-xs font-normal" 
-                      : "bg-card/90 backdrop-blur-sm border border-border/70 text-foreground rounded-tl-xs"
-                  }`}>
-                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                    {msg.created_at && (
-                       <div className={`mt-1.5 text-[9px] ${msg.role === "user" ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
-                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                       </div>
-                    )}
-                  </div>
+          ))}
+          {sending && (
+            <div className="flex justify-start">
+              <div className="flex gap-3">
+                <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <Bot className="size-4 animate-pulse" />
+                </div>
+                <div className="rounded-2xl px-5 py-3 text-sm bg-card border border-border/60 flex items-center gap-2 shadow-sm">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
                 </div>
               </div>
-            ))
-          )}
-
-          {sending && (
-             <div className="flex justify-start">
-               <div className="flex max-w-[85%] gap-3">
-                 <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-                   <Bot className="size-3.5 animate-pulse" />
-                 </div>
-                 <div className="rounded-2xl px-4 py-3 text-sm bg-card border border-border/50 flex items-center gap-2">
-                   <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                   <span className="text-muted-foreground text-xs">AI is thinking...</span>
-                 </div>
-               </div>
-             </div>
+            </div>
           )}
           <div ref={chatBottomRef} />
         </div>
 
         {/* Chat Input */}
-        <div className="border-t border-border/60 bg-background/95 backdrop-blur-md p-4 pb-6">
+        <div className="p-6 bg-background shrink-0">
           {chatError && (
-             <Alert variant="destructive" className="mb-3 py-2 px-3 h-auto min-h-0 text-xs mx-auto max-w-4xl shadow-sm">
-               <AlertDescription className="text-xs">{chatError}</AlertDescription>
-             </Alert>
+            <Alert variant="destructive" className="mb-3">
+              <AlertDescription>{chatError}</AlertDescription>
+            </Alert>
           )}
+
+          {attachedDocs.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3 max-w-5xl mx-auto px-2">
+              {attachedDocs.map(doc => (
+                <div key={doc.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-medium">
+                  <FileText className="size-3.5" />
+                  <span className="truncate max-w-[150px]">{doc.filename}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDocToDelete(doc)}
+                    className="ml-1 opacity-70 hover:opacity-100 hover:text-destructive transition-colors focus:outline-none"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="relative flex items-center max-w-4xl mx-auto rounded-full bg-card/80 border border-border/80 shadow-md shadow-primary/5 transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 backdrop-blur"
+            className="flex items-end gap-2 bg-card rounded-2xl border border-border/80 p-2 shadow-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all max-w-5xl mx-auto"
           >
-            <input
-              type="text"
-              placeholder={`Message ${activeType === "parent" ? "Assistant" : "Sub Assistant"}...`}
+            <div className="flex items-center px-1 pb-1">
+              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground rounded-full hover:bg-muted" onClick={() => fileInputRef.current?.click()} disabled={uploadingDoc}>
+                {uploadingDoc ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
+              </Button>
+              <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.txt,.docx" onChange={handleFileUpload} />
+            </div>
+
+            <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              className="w-full rounded-full bg-transparent pl-5 pr-14 py-3.5 text-sm focus:outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
+              onChange={e => setInput(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1 bg-transparent border-none focus:outline-none px-2 py-3 text-[15px] resize-none min-h-[44px] max-h-[200px]"
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
               disabled={sending}
             />
-            <Button
-              type="submit"
-              size="icon"
-              disabled={!input.trim() || sending}
-              className="absolute right-1.5 size-9 rounded-full bg-primary text-primary-foreground shadow-sm hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:hover:scale-100"
-            >
-              <Send className="size-4" />
-            </Button>
+
+            <div className="px-1 pb-1">
+              <Button type="submit" size="icon" disabled={!input.trim() || sending} className="h-9 w-9 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-all disabled:opacity-50">
+                <Send className="size-4" />
+              </Button>
+            </div>
           </form>
         </div>
       </div>
-      <Dialog open={deleteChildDialogOpen} onOpenChange={(open) => !childDeleting && setDeleteChildDialogOpen(open)}>
+
+      {/* New Chat Modal */}
+      <Dialog open={newChatModalOpen} onOpenChange={setNewChatModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Create New Chat</DialogTitle>
+            <DialogDescription>
+              Set a name for this chat and initialize its variables.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 py-4 max-h-[60vh] overflow-y-auto px-1">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Chat Name <span className="text-destructive">*</span></label>
+              <Input
+                value={newChatTitle}
+                onChange={(e) => setNewChatTitle(e.target.value)}
+                placeholder="Name of this chat"
+                className={!newChatTitle.trim() && newChatErrors['__title__'] ? 'border-destructive' : ''}
+              />
+              {newChatErrors['__title__'] && <p className="text-xs text-destructive">{newChatErrors['__title__']}</p>}
+            </div>
+            {Array.isArray(system?.variables) && system.variables.length > 0 && (
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-semibold mb-4">Chat Variables</h4>
+                <div className="space-y-4">
+                  {system.variables.map((v) => (
+                    <div key={v.name} className="flex flex-col gap-2">
+                      <label className="text-sm font-medium leading-none">
+                        {v.label || v.name} <span className="text-destructive">*</span>
+                      </label>
+                      <div>
+                        {v.type === "number" ? (
+                          <Input
+                            type="number"
+                            placeholder={v.description || `Enter ${v.name}`}
+                            value={newChatVars[v.name] || ""}
+                            onChange={(e) => setNewChatVars({...newChatVars, [v.name]: e.target.value})}
+                          />
+                        ) : v.type === "boolean" ? (
+                          <div className="flex items-center h-10">
+                            <Switch
+                              checked={newChatVars[v.name] === "true"}
+                              onCheckedChange={(checked) => setNewChatVars({...newChatVars, [v.name]: checked ? "true" : "false"})}
+                            />
+                            <span className="ml-3 text-sm">{newChatVars[v.name] === "true" ? "True" : "False"}</span>
+                          </div>
+                        ) : (
+                          <Input
+                            placeholder={v.description || `Enter ${v.name}`}
+                            value={newChatVars[v.name] || ""}
+                            onChange={(e) => setNewChatVars({...newChatVars, [v.name]: e.target.value})}
+                          />
+                        )}
+                        {newChatErrors[v.name] && <p className="text-xs text-destructive mt-1.5">{newChatErrors[v.name]}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewChatModalOpen(false)}>Cancel</Button>
+            <Button onClick={() => {
+              let hasErrors = false;
+              const errors: Record<string, string> = {};
+              // Validate Chat Name
+              if (!newChatTitle.trim()) {
+                errors['__title__'] = "Chat name is required";
+                hasErrors = true;
+              }
+              // Validate all variables
+              if (Array.isArray(system?.variables)) {
+                system.variables.forEach(v => {
+                  const val = newChatVars[v.name] || "";
+                  // boolean always has a value ("true"/"false"), skip blank check
+                  if (v.type !== "boolean" && !val.trim()) {
+                    errors[v.name] = "This field is required";
+                    hasErrors = true;
+                  } else if (val.trim() && v.type === "number" && isNaN(Number(val))) {
+                    errors[v.name] = "Must be a valid number";
+                    hasErrors = true;
+                  }
+                });
+              }
+              if (hasErrors) {
+                setNewChatErrors(errors);
+                return;
+              }
+              setNewChatModalOpen(false);
+              handleStartNewConversation(newChatTitle, newChatVars);
+            }}>Create Chat</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Document Dialog */}
+      <Dialog open={!!docToDelete} onOpenChange={(open) => {
+        if (!open && !isDeletingDoc) {
+          setDocToDelete(null);
+          setDeleteDocError(null);
+        }
+      }}>
         <DialogContent className="border-border bg-popover sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Sub Assistant</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="size-5" />
+              Delete Document
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-semibold text-foreground">"{childToDelete?.module_name || 'this Sub Assistant'}"</span>? 
+              Are you sure you want to permanently delete{" "}
+              <span className="font-semibold text-foreground">"{docToDelete?.filename}"</span>?
               This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
 
-          {childDeleteError && (
+          {deleteDocError && (
             <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
               <AlertCircle className="size-4 shrink-0" />
-              <span>{childDeleteError}</span>
+              <span>{deleteDocError}</span>
             </div>
           )}
 
@@ -1200,133 +904,141 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             <Button
               type="button"
               variant="outline"
-              onClick={() => setDeleteChildDialogOpen(false)}
-              disabled={childDeleting}
+              onClick={() => setDocToDelete(null)}
+              disabled={isDeletingDoc}
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
-              onClick={handleConfirmDeleteChild}
-              disabled={childDeleting}
+              onClick={confirmDeleteDoc}
+              disabled={isDeletingDoc}
             >
-              {childDeleting ? (
-                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Deleting...</>
+              {isDeletingDoc ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  Deleting...
+                </>
               ) : (
-                <><Trash2 className="mr-1.5 size-3.5" /> Delete</>
+                <>
+                  <Trash2 className="mr-1.5 size-3.5" />
+                  Delete
+                </>
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Add Variable */}
-      <Dialog open={addVarDialogOpen} onOpenChange={(open) => !savingNewVar && setAddVarDialogOpen(open)}>
+      {/* Delete Child Dialog */}
+      <Dialog open={!!childToDelete} onOpenChange={(open) => {
+        if (!open && !isDeletingChild) {
+          setChildToDelete(null);
+          setDeleteChildError(null);
+        }
+      }}>
         <DialogContent className="border-border bg-popover sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add {activeType === "parent" ? "Parent" : "Child"} Variable</DialogTitle>
-            <DialogDescription>
-              Define a new variable for this {activeType === "parent" ? "Assistant" : "Sub Assistant"}.
-            </DialogDescription>
-          </DialogHeader>
-
-          {addVarError && (
-            <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
-              <AlertCircle className="size-4 shrink-0" />
-              <span>{addVarError}</span>
-            </div>
-          )}
-
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Variable Key Name *</label>
-              <Input
-                placeholder="e.g. user_query, customer_name"
-                value={newVarName}
-                onChange={(e) => setNewVarName(e.target.value)}
-                className="h-8 text-xs font-mono"
-              />
-              <span className="text-[10px] text-muted-foreground">Will be referenced as {`{{${newVarName || "var_name"}}}`}</span>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Display Label</label>
-              <Input
-                placeholder="e.g. Customer Name"
-                value={newVarLabel}
-                onChange={(e) => setNewVarLabel(e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-foreground">Default Value (optional)</label>
-              <Input
-                placeholder="Default value or leave empty"
-                value={newVarDefault}
-                onChange={(e) => setNewVarDefault(e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:space-x-0 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAddVarDialogOpen(false)}
-              disabled={savingNewVar}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleAddNewVariable}
-              disabled={savingNewVar || !newVarName.trim()}
-            >
-              {savingNewVar ? (
-                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Adding...</>
-              ) : (
-                <><Plus className="mr-1.5 size-3.5" /> Add Variable</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog: Clear Chat Confirmation */}
-      <Dialog open={clearChatDialogOpen} onOpenChange={(open) => !clearingChat && setClearChatDialogOpen(open)}>
-        <DialogContent className="border-border bg-popover sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-destructive flex items-center gap-2">
-              <Trash2 className="size-4" />
-              <span>Clear Chat History?</span>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="size-5" />
+              Delete Sub Assistant
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to clear this {activeType === "parent" ? "Assistant" : "Sub Assistant"} chat? All conversation messages will be deleted.
+              Are you sure you want to permanently delete{" "}
+              <span className="font-semibold text-foreground">"{childToDelete?.module_name}"</span>?
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          {deleteChildError && (
+            <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{deleteChildError}</span>
+            </div>
+          )}
 
           <DialogFooter className="gap-2 sm:space-x-0 pt-2">
             <Button
               type="button"
               variant="outline"
-              onClick={() => setClearChatDialogOpen(false)}
-              disabled={clearingChat}
+              onClick={() => setChildToDelete(null)}
+              disabled={isDeletingChild}
             >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
-              onClick={handleClearChat}
-              disabled={clearingChat}
+              onClick={confirmDeleteChild}
+              disabled={isDeletingChild}
             >
-              {clearingChat ? (
-                <><Loader2 className="mr-1.5 size-3.5 animate-spin" /> Clearing...</>
+              {isDeletingChild ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  Deleting...
+                </>
               ) : (
-                <><Trash2 className="mr-1.5 size-3.5" /> Clear Chat</>
+                <>
+                  <Trash2 className="mr-1.5 size-3.5" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Chat Dialog */}
+      <Dialog open={isClearChatModalOpen} onOpenChange={(open) => {
+        if (!open && !isClearingChat) {
+          setIsClearChatModalOpen(false);
+          setClearChatError(null);
+        }
+      }}>
+        <DialogContent className="border-border bg-popover sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="size-5" />
+              Clear Chat
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear all messages in this chat? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {clearChatError && (
+            <div className="flex items-center gap-2 rounded-md bg-destructive/15 p-2.5 text-xs text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{clearChatError}</span>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:space-x-0 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsClearChatModalOpen(false)}
+              disabled={isClearingChat}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmClearChat}
+              disabled={isClearingChat}
+            >
+              {isClearingChat ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-1.5 size-3.5" />
+                  Clear Messages
+                </>
               )}
             </Button>
           </DialogFooter>

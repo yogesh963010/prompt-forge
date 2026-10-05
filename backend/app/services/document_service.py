@@ -138,6 +138,7 @@ class DocumentService:
         prompt_system_id: int,
         file: UploadFile,
         module_id: Optional[int] = None,
+        conversation_id: Optional[int] = None,
         railway_document_id: Optional[str] = None,
     ) -> Document:
         """Validate, store PDF locally in isolated path, and persist metadata."""
@@ -173,6 +174,7 @@ class DocumentService:
             user_id=user_id,
             prompt_system_id=prompt_system_id,
             module_id=module_id,
+            conversation_id=conversation_id,
             filename=file.filename or clean_filename,
             stored_filename=stored_filename,
             file_path=str(file_path),
@@ -218,6 +220,7 @@ class DocumentService:
         user_id: int,
         prompt_system_id: Optional[int] = None,
         module_id: Optional[int] = None,
+        conversation_id: Optional[int] = None,
         parent_only: Optional[bool] = None,
         include_all_modules: bool = False,
     ) -> List[Document]:
@@ -235,6 +238,11 @@ class DocumentService:
             query = query.where(Document.module_id == module_id)
         elif parent_only is True:
             query = query.where(Document.module_id.is_(None))
+            
+        if conversation_id is not None:
+            query = query.where(Document.conversation_id == conversation_id)
+        else:
+            query = query.where(Document.conversation_id.is_(None))
 
         query = query.order_by(Document.created_at.desc())
         result = await db.execute(query)
@@ -246,6 +254,7 @@ class DocumentService:
         user_id: int,
         prompt_system_id: int,
         module_id: Optional[int] = None,
+        conversation_id: Optional[int] = None,
         max_chars_per_doc: int = 4000,
     ) -> dict:
         """Extract and format text context from scoped documents for LLM chatbot grounding."""
@@ -258,6 +267,7 @@ class DocumentService:
             user_id=user_id,
             prompt_system_id=prompt_system_id,
             module_id=module_id,
+            conversation_id=conversation_id,
             include_all_modules=False,
         )
 

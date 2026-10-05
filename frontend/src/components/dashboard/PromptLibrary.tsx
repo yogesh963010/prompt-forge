@@ -162,7 +162,7 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onD
                 variant="ghost"
                 size="icon"
                 className="size-7.5 rounded-lg text-muted-foreground hover:bg-card hover:text-foreground transition-colors"
-                title="Duplicate Prompt System"
+                title="Duplicate Assistant"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDuplicate();
@@ -178,7 +178,7 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onD
                   variant="ghost"
                   size="icon"
                   className="size-7.5 rounded-lg text-muted-foreground hover:text-primary transition-colors"
-                  title="Unarchive Prompt System"
+                  title="Unarchive Assistant"
                   onClick={(e) => {
                     e.stopPropagation();
                     onUnarchive();
@@ -193,7 +193,7 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onD
                   variant="ghost"
                   size="icon"
                   className="size-7.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors"
-                  title="Archive Prompt System"
+                  title="Archive Assistant"
                   onClick={(e) => {
                     e.stopPropagation();
                     onArchive();
@@ -208,7 +208,7 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onD
               variant="ghost"
               size="icon"
               className="size-7.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-              title="Delete Prompt System"
+              title="Delete Assistant"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
@@ -287,7 +287,7 @@ export function PromptLibrary({
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search Prompt Systems by name or description..."
+            placeholder="Search Assistants by name or description..."
             className="h-11 rounded-xl bg-card/75 pl-10 pr-9 border-border/70 backdrop-blur shadow-xs text-sm focus:border-primary focus:ring-primary/20"
           />
           {search && (
@@ -349,7 +349,7 @@ export function PromptLibrary({
       <div>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-foreground">Prompt Systems</h2>
+            <h2 className="text-base font-bold text-foreground">Assistants</h2>
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
               {filtered.length}
             </span>
@@ -363,7 +363,7 @@ export function PromptLibrary({
         {loading ? (
           <div className="flex h-56 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card/40 backdrop-blur">
             <Loader2 className="size-8 animate-spin text-primary" />
-            <p className="text-xs font-medium text-muted-foreground">Loading Prompt Systems from workspace...</p>
+            <p className="text-xs font-medium text-muted-foreground">Loading Assistants from workspace...</p>
           </div>
         ) : (
           <>
@@ -387,17 +387,17 @@ export function PromptLibrary({
                 <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-4 ring-1 ring-primary/20">
                   <FileCode2 className="size-7" />
                 </div>
-                <h3 className="text-base font-bold text-foreground">No Prompt Systems Found</h3>
+                <h3 className="text-base font-bold text-foreground">No Assistants Found</h3>
                 <p className="mt-1.5 text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed">
                   {search
-                    ? `No prompt systems match "${search}". Try adjusting your keywords.`
+                    ? `No assistants match "${search}". Try adjusting your keywords.`
                     : statusFilter === "Draft"
-                      ? "You don't have any archived prompt systems right now."
-                      : "Create your first Prompt System to begin orchestrating prompts, modules, and assistants."}
+                      ? "You don't have any archived assistants right now."
+                      : "Create your first Assistant to begin orchestrating prompts, modules, and assistants."}
                 </p>
                 {!search && (
                   <Button onClick={onNew} size="sm" className="mt-5 rounded-xl font-semibold gap-1.5">
-                    <Plus className="size-3.5" /> Create Prompt System
+                    <Plus className="size-3.5" /> Create Assistant
                   </Button>
                 )}
               </div>

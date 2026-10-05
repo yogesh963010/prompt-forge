@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..schemas.conversation import ConversationCreate, ConversationRead, MessageCreate, MessageRead
+from ..schemas.conversation import ConversationCreate, ConversationRead, MessageCreate, MessageRead, ConversationUpdate
 from ..services.conversation_service import conversation_service
 from ..dependencies.auth import get_current_user
 from ..models.user import User
@@ -47,6 +47,28 @@ async def delete_conversation(
 ):
     deleted = await conversation_service.delete_conversation(db, current_user.id, conversation_id)
     if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+@router.patch("/{conversation_id}", response_model=ConversationRead)
+async def update_conversation(
+    conversation_id: int,
+    conv_in: ConversationUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    conv = await conversation_service.update_conversation(db, current_user.id, conversation_id, conv_in)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conv
+
+@router.post("/{conversation_id}/clear", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_conversation_messages(
+    conversation_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    cleared = await conversation_service.clear_messages(db, current_user.id, conversation_id)
+    if not cleared:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageRead])

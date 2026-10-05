@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +21,8 @@ interface CreatePromptSystemDialogProps {
   setCreateDescription: (desc: string) => void;
   createInstructions: string;
   setCreateInstructions: (inst: string) => void;
+  createVariables: {name: string, type: string}[];
+  setCreateVariables: (vars: {name: string, type: string}[]) => void;
   creating: boolean;
   createError: string | null;
   onSubmit: () => void;
@@ -38,6 +40,8 @@ export function CreatePromptSystemDialog({
   setCreateDescription,
   createInstructions,
   setCreateInstructions,
+  createVariables,
+  setCreateVariables,
   creating,
   createError,
   onSubmit,
@@ -49,9 +53,9 @@ export function CreatePromptSystemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-border bg-popover sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{title || "New Prompt System"}</DialogTitle>
+          <DialogTitle>{title || "New Assistant"}</DialogTitle>
           <DialogDescription>
-            {description || "Create a new Prompt System in your workspace."}
+            {description || "Create a new Assistant in your workspace."}
           </DialogDescription>
         </DialogHeader>
 
@@ -80,7 +84,7 @@ export function CreatePromptSystemDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Description</label>
+            <label className="text-xs font-medium">Description *</label>
             <Input
               placeholder="e.g. High-authority technical tutorials"
               className="bg-card/70"
@@ -90,7 +94,7 @@ export function CreatePromptSystemDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium">Initial Instructions (optional)</label>
+            <label className="text-xs font-medium">Initial Instructions *</label>
             <Textarea
               placeholder="You are an expert technical writer..."
               className="bg-card/70 text-xs min-h-[90px] font-mono"
@@ -99,6 +103,72 @@ export function CreatePromptSystemDialog({
               disabled={creating}
             />
           </div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium">Variable Definitions</label>
+              <div className="flex items-center gap-2">
+                {createVariables.some(v => !v.name.trim()) && (
+                  <span className="text-[10px] text-destructive font-medium">First fill the value</span>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setCreateVariables([...createVariables, { name: "", type: "text" }])}
+                  disabled={creating || createVariables.some(v => !v.name.trim())}
+                >
+                  <Plus className="size-3 mr-1" /> Add Variable
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-[160px] overflow-y-auto space-y-2 pr-1">
+              {createVariables.map((v, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Variable Name (e.g. prospect_name)"
+                    className="bg-card/70 h-8 text-xs flex-1"
+                    value={v.name}
+                    onChange={(e) => {
+                      const newVars = [...createVariables];
+                      newVars[i].name = e.target.value;
+                      setCreateVariables(newVars);
+                    }}
+                    disabled={creating}
+                  />
+                  <select
+                    className="bg-card/70 h-8 text-xs flex-1 rounded-md border border-input px-3 py-1 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    value={v.type || "text"}
+                    onChange={(e) => {
+                      const newVars = [...createVariables];
+                      newVars[i].type = e.target.value;
+                      setCreateVariables(newVars);
+                    }}
+                    disabled={creating}
+                  >
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="boolean">Boolean</option>
+                  </select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:bg-destructive/20 shrink-0"
+                    onClick={() => {
+                      const newVars = createVariables.filter((_, idx) => idx !== i);
+                      setCreateVariables(newVars);
+                    }}
+                    disabled={creating}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <DialogFooter className="gap-2 sm:space-x-0 pt-2">
             <Button
               type="button"
@@ -108,7 +178,7 @@ export function CreatePromptSystemDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={creating || !createName.trim()}>
+            <Button type="submit" disabled={creating || !createName.trim() || !createDescription.trim() || !createInstructions.trim()}>
               {creating ? (
                 <>
                   <Loader2 className="mr-1.5 size-3.5 animate-spin" />
@@ -117,7 +187,7 @@ export function CreatePromptSystemDialog({
               ) : (
                 <>
                   <Plus className="mr-1.5 size-3.5" />
-                  {submitText || "Create Prompt System"}
+                  {submitText || "Create Assistant"}
                 </>
               )}
             </Button>
@@ -151,7 +221,7 @@ export function DeletePromptSystemDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertCircle className="size-5" />
-            Delete Prompt System
+            Delete Assistant
           </DialogTitle>
           <DialogDescription>
             Are you sure you want to permanently delete{" "}
