@@ -535,6 +535,17 @@ export function PromptForgeDashboard({
     }
   };
 
+  // Handle Duplicate Prompt System
+  const handleDuplicatePromptSystem = async (id: number) => {
+    try {
+      const duplicated = await promptSystemService.duplicate(id);
+      setSystems((prev) => [duplicated, ...prev]);
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      setListError(apiErr.message || "Failed to duplicate Prompt System.");
+    }
+  };
+
   // Variable Management Handlers (Add, Edit, Delete)
   const openAddVariable = (prefillName?: string) => {
     setVariableModalMode("add");
@@ -784,7 +795,7 @@ export function PromptForgeDashboard({
           onClick={() => setMobileNav(false)}
         />
       )}
-      <div className="relative flex min-h-screen">
+      <div className="relative flex h-screen overflow-hidden">
         <Sidebar
           open={mobileNav}
           user={currentUser}
@@ -810,7 +821,7 @@ export function PromptForgeDashboard({
           }}
           onLogout={handleLogout}
         />
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 h-screen overflow-y-auto">
           <header className="sticky top-0 z-20 border-b border-border/60 bg-surface-glass px-4 py-3 backdrop-blur-xl sm:px-6">
             <div className="flex items-center gap-3">
               <Button
@@ -860,6 +871,14 @@ export function PromptForgeDashboard({
                         <span>/</span>
                         <span className="font-medium text-foreground truncate max-w-[200px]">
                           {editName || selectedSystem.name}
+                        </span>
+                      </>
+                    )}
+                    {screen === "parent_assistant" && systemToRun && (
+                      <>
+                        <span>/</span>
+                        <span className="font-medium text-foreground truncate max-w-[200px]">
+                          {systemToRun.name}
                         </span>
                       </>
                     )}
@@ -924,6 +943,12 @@ export function PromptForgeDashboard({
                   </>
                 )}
 
+                {screen === "parent_assistant" && (
+                  <Button size="sm" onClick={() => setNewOpen(true)} className="gap-1.5">
+                    <Plus className="size-3.5" /> New Assistant
+                  </Button>
+                )}
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -958,6 +983,7 @@ export function PromptForgeDashboard({
               onDelete={promptDelete}
               onArchive={handleArchivePromptSystem}
               onUnarchive={handleUnarchivePromptSystem}
+              onDuplicate={handleDuplicatePromptSystem}
               onRun={(system) => {
                 setSystemToRun({ id: system.id, name: system.name, variables: system.variables });
                 setScreen("parent_assistant");
@@ -1054,6 +1080,9 @@ export function PromptForgeDashboard({
             if (!open) setCreateError(null);
           }
         }}
+        title={screen === "parent_assistant" ? "New Assistant" : "New Prompt System"}
+        description={screen === "parent_assistant" ? "Create a new Assistant in your workspace." : "Create a new Prompt System in your workspace."}
+        submitText={screen === "parent_assistant" ? "Create Assistant" : "Create Prompt System"}
         createName={createName}
         setCreateName={setCreateName}
         createDescription={createDescription}
@@ -1139,12 +1168,7 @@ export function PromptForgeDashboard({
 
       <PromptRunModal
         open={runModalOpen}
-        onOpenChange={(open) => {
-          setRunModalOpen(open);
-          if (!open) {
-            loadHistory();
-          }
-        }}
+        onOpenChange={setRunModalOpen}
         promptSystemId={systemToRun?.id ?? null}
         promptSystemName={systemToRun?.name}
         variables={systemToRun?.variables}

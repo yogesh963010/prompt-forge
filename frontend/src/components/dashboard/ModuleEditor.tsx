@@ -10,6 +10,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Zap,
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ interface ModuleEditorProps {
   saving: boolean;
   saveError: string | null;
   saveSuccess: boolean;
+  entityType?: "module" | "assistant";
   onSave: (payload: {
     name: string;
     description: string;
@@ -59,6 +61,7 @@ export function ModuleEditor({
   saving,
   saveError,
   saveSuccess,
+  entityType = "module",
   onSave,
   onDelete,
   onBack,
@@ -341,15 +344,17 @@ export function ModuleEditor({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="mr-1.5 size-4" /> Back to Modules
+            <ArrowLeft className="mr-1.5 size-4" /> {entityType === "assistant" ? "Back to Assistant" : "Back to Modules"}
           </Button>
           <div className="h-4 w-px bg-border/60" />
           <div className="flex items-center gap-2">
             <div className="grid size-7 place-items-center rounded-md bg-accent text-accent-foreground">
-              <Boxes className="size-4" />
+              {entityType === "assistant" ? <Zap className="size-4" /> : <Boxes className="size-4" />}
             </div>
             <h1 className="text-base font-semibold">
-              {isNew ? "Create Prompt Module" : name || "Edit Module"}
+              {isNew
+                ? (entityType === "assistant" ? "Create Assistant" : "Create Prompt Module")
+                : name || (entityType === "assistant" ? "Edit Assistant" : "Edit Module")}
             </h1>
           </div>
         </div>
@@ -362,7 +367,7 @@ export function ModuleEditor({
               className="text-destructive hover:bg-destructive/10"
               onClick={onDelete}
             >
-              <Trash2 className="mr-1.5 size-3.5" /> Delete Module
+              <Trash2 className="mr-1.5 size-3.5" /> {entityType === "assistant" ? "Delete Assistant" : "Delete Module"}
             </Button>
           )}
           <Button size="sm" onClick={() => handleFormSubmit()} disabled={saving || !name.trim()}>
@@ -371,7 +376,7 @@ export function ModuleEditor({
                 <Loader2 className="mr-1.5 size-3.5 animate-spin" /> Saving...
               </>
             ) : isNew ? (
-              "Create Module"
+              entityType === "assistant" ? "Create Assistant" : "Create Module"
             ) : (
               "Save Changes"
             )}
@@ -383,7 +388,7 @@ export function ModuleEditor({
       {saveSuccess && (
         <div className="mt-4 flex items-center gap-2 rounded-md bg-success-soft px-3 py-2 text-xs font-medium text-success">
           <CheckCircle2 className="size-4" />
-          <span>Module saved successfully.</span>
+          <span>{entityType === "assistant" ? "Assistant saved successfully." : "Module saved successfully."}</span>
         </div>
       )}
       {saveError && (
@@ -685,16 +690,18 @@ export function ModuleEditor({
           <div className="rounded-lg bg-card/55 p-4 ring-1 ring-border/60">
             <h2 className="text-sm font-semibold">Basic Information</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Module name and high-level description.
+              {entityType === "assistant" ? "Assistant name and high-level description." : "Module name and high-level description."}
             </p>
 
             <div className="mt-4 space-y-3 max-w-xl">
               <div>
-                <label className="mb-1 block text-xs font-medium">Module Name *</label>
+                <label className="mb-1 block text-xs font-medium">
+                  {entityType === "assistant" ? "Assistant Name *" : "Module Name *"}
+                </label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Research, Critic, Summarizer"
+                  placeholder={entityType === "assistant" ? "e.g. Research Assistant, Critic, Summarizer" : "e.g. Research, Critic, Summarizer"}
                 />
               </div>
 
