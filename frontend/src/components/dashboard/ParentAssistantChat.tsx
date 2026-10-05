@@ -789,12 +789,14 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           </DialogHeader>
           <div className="grid gap-5 py-4 max-h-[60vh] overflow-y-auto px-1">
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium">Chat Name</label>
+              <label className="text-sm font-medium">Chat Name <span className="text-destructive">*</span></label>
               <Input
                 value={newChatTitle}
                 onChange={(e) => setNewChatTitle(e.target.value)}
                 placeholder="Name of this chat"
+                className={!newChatTitle.trim() && newChatErrors['__title__'] ? 'border-destructive' : ''}
               />
+              {newChatErrors['__title__'] && <p className="text-xs text-destructive">{newChatErrors['__title__']}</p>}
             </div>
             {Array.isArray(system?.variables) && system.variables.length > 0 && (
               <div className="border-t pt-4">
@@ -803,8 +805,7 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                   {system.variables.map((v) => (
                     <div key={v.name} className="flex flex-col gap-2">
                       <label className="text-sm font-medium leading-none">
-                        {v.label || v.name}
-                        {v.required && <span className="text-destructive ml-1">*</span>}
+                        {v.label || v.name} <span className="text-destructive">*</span>
                       </label>
                       <div>
                         {v.type === "number" ? (
@@ -842,6 +843,12 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
             <Button onClick={() => {
               let hasErrors = false;
               const errors: Record<string, string> = {};
+              // Validate Chat Name
+              if (!newChatTitle.trim()) {
+                errors['__title__'] = "Chat name is required";
+                hasErrors = true;
+              }
+              // Validate all variables
               if (Array.isArray(system?.variables)) {
                 system.variables.forEach(v => {
                   const val = newChatVars[v.name] || "";
