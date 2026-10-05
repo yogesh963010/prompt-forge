@@ -24,11 +24,12 @@ async def upload_document(
     file: UploadFile = File(..., description="PDF file to upload"),
     prompt_system_id: int = Form(..., description="Prompt System ID owning the document"),
     module_id: Optional[int] = Form(None, description="Optional Child Assistant Module ID"),
+    conversation_id: Optional[int] = Form(None, description="Optional Conversation ID"),
     railway_document_id: Optional[str] = Form(None, description="Optional Railway Document ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a PDF file and link it to the authenticated user, Prompt System, and optional Module."""
+    """Upload a PDF file and link it to the authenticated user, Prompt System, and optional Module/Conversation."""
     try:
         doc = await document_service.upload_document(
             db=db,
@@ -36,6 +37,7 @@ async def upload_document(
             prompt_system_id=prompt_system_id,
             file=file,
             module_id=module_id,
+            conversation_id=conversation_id,
             railway_document_id=railway_document_id,
         )
         return doc
@@ -58,6 +60,7 @@ async def upload_document(
 async def list_documents(
     prompt_system_id: Optional[int] = Query(None, description="Filter by Prompt System ID"),
     module_id: Optional[int] = Query(None, description="Filter by Child Module ID"),
+    conversation_id: Optional[int] = Query(None, description="Filter by Conversation ID"),
     parent_only: Optional[bool] = Query(None, description="Filter documents belonging only to parent (module_id is null)"),
     include_all_modules: bool = Query(False, description="Include all modules for prompt system"),
     db: AsyncSession = Depends(get_db),
@@ -69,6 +72,7 @@ async def list_documents(
         user_id=current_user.id,
         prompt_system_id=prompt_system_id,
         module_id=module_id,
+        conversation_id=conversation_id,
         parent_only=parent_only,
         include_all_modules=include_all_modules,
     )
@@ -82,6 +86,7 @@ async def list_documents(
 async def get_document_context(
     prompt_system_id: int = Query(..., description="Prompt System ID"),
     module_id: Optional[int] = Query(None, description="Optional Child Assistant Module ID"),
+    conversation_id: Optional[int] = Query(None, description="Optional Conversation ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -92,6 +97,7 @@ async def get_document_context(
             user_id=current_user.id,
             prompt_system_id=prompt_system_id,
             module_id=module_id,
+            conversation_id=conversation_id,
         )
     except ValueError as ve:
         err_msg = str(ve)

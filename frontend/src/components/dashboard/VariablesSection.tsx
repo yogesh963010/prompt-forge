@@ -53,18 +53,10 @@ export function VariableCard({ variable, onEdit, onDelete }: VariableCardProps) 
           </Button>
         </div>
       </div>
-      <div className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+      <div className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
         <div>
           <span className="text-muted-foreground">Label</span>
           <p className="mt-1 font-medium">{variable.label || variable.name}</p>
-        </div>
-        <div>
-          <span className="text-muted-foreground">Default</span>
-          <p className="mt-1 font-medium font-mono text-[11px]">
-            {variable.default !== undefined && variable.default !== null && String(variable.default) !== ""
-              ? String(variable.default)
-              : "None"}
-          </p>
         </div>
         <div>
           <span className="text-muted-foreground">Description</span>
@@ -102,11 +94,10 @@ export function VariableDetectionBanner({
             </span>
           ) : validationResult ? (
             <span
-              className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase ${
-                validationResult.valid
+              className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase ${validationResult.valid
                   ? "bg-success-soft text-success"
                   : "bg-destructive/15 text-destructive"
-              }`}
+                }`}
             >
               Status: {validationResult.valid ? "Valid" : "Invalid"}
             </span>
@@ -170,11 +161,10 @@ export function VariableDetectionBanner({
 
           {/* Missing */}
           <div
-            className={`rounded-md p-2.5 ${
-              validationResult.missing_variables.length > 0
+            className={`rounded-md p-2.5 ${validationResult.missing_variables.length > 0
                 ? "bg-destructive/10 text-destructive"
                 : "bg-muted/40"
-            }`}
+              }`}
           >
             <span className="font-mono text-[10px] uppercase text-muted-foreground block mb-1.5">
               Missing
@@ -332,12 +322,9 @@ export function VariableModal({
                 className="w-full rounded-md border border-input bg-card/70 px-3 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 disabled={saving}
               >
-                <option value="text">Text / String</option>
+                <option value="text">Text</option>
                 <option value="number">Number</option>
-                <option value="integer">Integer</option>
                 <option value="boolean">Boolean</option>
-                <option value="select">Select</option>
-                <option value="multiline">Multiline</option>
               </select>
             </div>
 
@@ -530,7 +517,7 @@ export function VariablesSection({
           <div>
             <h2 className="text-sm font-semibold">Configured Variables</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Parameters supplied whenever this Prompt System runs.
+              Parameters supplied whenever this Assistant runs.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => onAddVariable()}>
@@ -551,7 +538,7 @@ export function VariablesSection({
             ) : (
               <div className="rounded-lg bg-card/40 p-8 text-center">
                 <p className="text-xs text-muted-foreground">
-                  No variables defined for this Prompt System.
+                  No variables defined for this Assistant.
                 </p>
                 <Button
                   variant="outline"

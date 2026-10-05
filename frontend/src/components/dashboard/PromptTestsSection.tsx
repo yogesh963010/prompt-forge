@@ -111,7 +111,7 @@ export function PromptTestsSection({
     setFormExpectedBehavior("");
     setFormError(null);
 
-    // Seed variables from prompt system's configured variables
+    // Seed variables from assistant's configured variables
     const initialVars: VariableEntry[] = systemVariables.map((v) => ({
       key: v.name,
       value: v.default !== undefined && v.default !== null ? String(v.default) : "",
@@ -331,9 +331,9 @@ export function PromptTestsSection({
     return (
       <div className="rounded-lg bg-card/55 p-8 text-center ring-1 ring-border/60">
         <FlaskConical className="mx-auto size-8 text-muted-foreground" />
-        <h3 className="mt-2 text-sm font-semibold">Select a Prompt System</h3>
+        <h3 className="mt-2 text-sm font-semibold">Select a Assistant</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Save or choose a Prompt System to create and run test cases.
+          Save or choose a Assistant to create and run test cases.
         </p>
       </div>
     );
@@ -395,7 +395,7 @@ export function PromptTestsSection({
           <FlaskConical className="mx-auto size-9 text-muted-foreground" />
           <h3 className="mt-3 text-sm font-semibold">No test cases created yet</h3>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-            Test cases allow you to test your prompt system with sample variables and review the resolved prompt and generated output.
+            Test cases allow you to test your assistant with sample variables and review the resolved prompt and generated output.
           </p>
           <Button size="sm" onClick={openCreateModal} className="mt-4 gap-1.5 text-xs">
             <Plus className="size-3.5" /> Create First Test Case
@@ -563,7 +563,7 @@ export function PromptTestsSection({
               {modalMode === "create" ? "Create Test Case" : "Edit Test Case"}
             </DialogTitle>
             <DialogDescription>
-              Define sample variable inputs and expected outcomes to test your prompt system.
+              Define sample variable inputs and expected outcomes to test your assistant.
             </DialogDescription>
           </DialogHeader>
 

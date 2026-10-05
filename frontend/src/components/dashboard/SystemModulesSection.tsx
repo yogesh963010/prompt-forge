@@ -179,14 +179,14 @@ export function SystemModulesSection({
         enabled: true,
       });
       setAddModalOpen(false);
-      setActionSuccess("Module added to Prompt System.");
+      setActionSuccess("Module added to Assistant.");
       await loadReferences();
     } catch (err: unknown) {
       const apiErr = err as { status?: number; message?: string };
       if (apiErr.status === 409) {
-        setAddError("This Prompt Module is already attached to this Prompt System.");
+        setAddError("This Prompt Module is already attached to this Assistant.");
       } else {
-        setAddError(apiErr.message || "Failed to attach module to Prompt System.");
+        setAddError(apiErr.message || "Failed to attach module to Assistant.");
       }
     } finally {
       setAdding(false);
@@ -216,7 +216,7 @@ export function SystemModulesSection({
       });
 
       setAddModalOpen(false);
-      setActionSuccess(`Added "${tpl.name}" to Prompt System.`);
+      setActionSuccess(`Added "${tpl.name}" to Assistant.`);
       await loadReferences();
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
@@ -355,7 +355,7 @@ export function SystemModulesSection({
       await moduleReferenceService.remove(promptSystemId, refToRemove.id);
       setReferences((prev) => prev.filter((item) => item.id !== refToRemove.id));
       setDeleteDialogOpen(false);
-      setActionSuccess("Module removed from Prompt System.");
+      setActionSuccess("Module removed from Assistant.");
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
       setRemoveError(apiErr.message || "Failed to remove module reference.");
@@ -560,12 +560,12 @@ export function SystemModulesSection({
       )}
 
       {/* ========================================================= */}
-      {/* DIALOG: Add Module to Prompt System */}
+      {/* DIALOG: Add Module to Assistant */}
       {/* ========================================================= */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
         <DialogContent className="border-border bg-popover sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Module to Prompt System</DialogTitle>
+            <DialogTitle>Add Module to Assistant</DialogTitle>
             <DialogDescription>
               Link a Prompt Module from your library. The underlying module remains reusable across
               systems.
@@ -1025,13 +1025,13 @@ export function SystemModulesSection({
               <span className="font-semibold text-foreground">
                 {refToRemove?.module_name || "this module"}
               </span>{" "}
-              from this Prompt System?
+              from this Assistant?
             </DialogDescription>
           </DialogHeader>
 
           <div className="rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
             <p>
-              <strong>Important:</strong> This only detaches the reference from this Prompt System.
+              <strong>Important:</strong> This only detaches the reference from this Assistant.
               The underlying Prompt Module will <strong>NOT</strong> be deleted and remains in your
               library.
             </p>

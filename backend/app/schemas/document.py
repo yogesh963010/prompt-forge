@@ -8,6 +8,7 @@ class DocumentBase(BaseModel):
     filename: str
     prompt_system_id: int
     module_id: Optional[int] = None
+    conversation_id: Optional[int] = None
 
 
 class DocumentResponse(DocumentBase):

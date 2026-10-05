@@ -1,12 +1,12 @@
 from typing import List, Optional
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..models.conversation import Conversation, Message
 from ..models.prompt_system import PromptSystem
 from ..models.prompt_module import PromptModule
-from ..schemas.conversation import ConversationCreate, MessageCreate
+from ..schemas.conversation import ConversationCreate, MessageCreate, ConversationUpdate
 
 class ConversationService:
     async def create_conversation(
@@ -30,6 +30,7 @@ class ConversationService:
             prompt_system_id=conv_in.prompt_system_id,
             module_id=conv_in.module_id,
             title=conv_in.title,
+            variables=conv_in.variables or {},
         )
         db.add(db_conv)
         await db.commit()
@@ -56,6 +57,20 @@ class ConversationService:
         await db.delete(conv)
         await db.commit()
         return True
+
+    async def update_conversation(
+        self, db: AsyncSession, user_id: int, conversation_id: int, conv_in: ConversationUpdate
+    ) -> Optional[Conversation]:
+        conv = await self.get_conversation(db, user_id, conversation_id)
+        if not conv:
+            return None
+        
+        if conv_in.title is not None:
+            conv.title = conv_in.title
+
+        await db.commit()
+        await db.refresh(conv)
+        return conv
 
     async def get_messages(self, db: AsyncSession, user_id: int, conversation_id: int) -> List[Message]:
         conv = await self.get_conversation(db, user_id, conversation_id)
@@ -101,6 +116,23 @@ class ConversationService:
             return False
             
         await db.delete(msg)
+        await db.commit()
+        return True
+
+    async def clear_messages(self, db: AsyncSession, user_id: int, conversation_id: int) -> bool:
+        # Check if conversation belongs to user
+        query = select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id
+        )
+        result = await db.execute(query)
+        conversation = result.scalar_one_or_none()
+        
+        if not conversation:
+            return False
+            
+        delete_query = delete(Message).where(Message.conversation_id == conversation_id)
+        await db.execute(delete_query)
         await db.commit()
         return True
 

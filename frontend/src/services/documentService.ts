@@ -9,6 +9,7 @@ export interface DocumentItem {
   stored_filename: string;
   prompt_system_id: number;
   module_id: number | null;
+  conversation_id: number | null;
   file_size: number;
   content_type: string;
   railway_document_id?: string | null;
@@ -29,6 +30,7 @@ export const documentService = {
   async listDocuments(
     promptSystemId?: number,
     moduleId?: number | null,
+    conversationId?: number | null,
     parentOnly?: boolean
   ): Promise<DocumentItem[]> {
     const params = new URLSearchParams();
@@ -39,6 +41,9 @@ export const documentService = {
       params.append("module_id", moduleId.toString());
     } else if (parentOnly) {
       params.append("parent_only", "true");
+    }
+    if (conversationId !== undefined && conversationId !== null) {
+      params.append("conversation_id", conversationId.toString());
     }
 
     const qs = params.toString();
@@ -51,12 +56,16 @@ export const documentService = {
    */
   async getScopeContext(
     promptSystemId: number,
-    moduleId?: number | null
+    moduleId?: number | null,
+    conversationId?: number | null
   ): Promise<ScopeContextResponse> {
     const params = new URLSearchParams();
     params.append("prompt_system_id", promptSystemId.toString());
     if (moduleId !== undefined && moduleId !== null) {
       params.append("module_id", moduleId.toString());
+    }
+    if (conversationId !== undefined && conversationId !== null) {
+      params.append("conversation_id", conversationId.toString());
     }
     const endpoint = `/documents/context?${params.toString()}`;
     return apiRequest<ScopeContextResponse>(endpoint);
@@ -75,13 +84,17 @@ export const documentService = {
   async uploadDocument(
     file: File,
     promptSystemId: number,
-    moduleId?: number | null
+    moduleId?: number | null,
+    conversationId?: number | null
   ): Promise<DocumentItem> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("prompt_system_id", promptSystemId.toString());
     if (moduleId !== undefined && moduleId !== null) {
       formData.append("module_id", moduleId.toString());
+    }
+    if (conversationId !== undefined && conversationId !== null) {
+      formData.append("conversation_id", conversationId.toString());
     }
 
     const token = typeof window !== "undefined" ? localStorage.getItem("pf-token") : null;

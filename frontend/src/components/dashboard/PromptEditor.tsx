@@ -111,7 +111,7 @@ export function PromptEditor({
     return (
       <div className="flex h-96 flex-col items-center justify-center gap-3 text-muted-foreground">
         <Loader2 className="size-8 animate-spin text-primary" />
-        <p className="text-sm">Loading Prompt System details...</p>
+        <p className="text-sm">Loading Assistant details...</p>
       </div>
     );
   }
@@ -122,10 +122,10 @@ export function PromptEditor({
         <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-6">
           <AlertCircle className="mx-auto size-8 text-destructive" />
           <h2 className="mt-3 text-base font-semibold text-foreground">
-            {detailsError || "Prompt System not found"}
+            {detailsError || "Assistant not found"}
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            The requested Prompt System could not be loaded or was removed.
+            The requested Assistant could not be loaded or was removed.
           </p>
           <div className="mt-5 flex justify-center gap-3">
             <Button variant="outline" size="sm" onClick={onBackToLibrary}>
@@ -148,7 +148,7 @@ export function PromptEditor({
       {saveSuccess && (
         <div className="mb-4 flex items-center gap-2 rounded-md bg-success-soft px-3 py-2 text-xs font-medium text-success">
           <CheckCircle2 className="size-4" />
-          <span>Prompt System saved successfully.</span>
+          <span>Assistant saved successfully.</span>
         </div>
       )}
       {saveError && (
@@ -158,7 +158,7 @@ export function PromptEditor({
         </div>
       )}
 
-      {/* Back to Prompt Systems button */}
+      {/* Back to Assistants button */}
       <div className="mb-3">
         <Button
           variant="ghost"
@@ -173,10 +173,10 @@ export function PromptEditor({
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-[10px] uppercase text-primary">Prompt System</p>
+          <p className="font-mono text-[10px] uppercase text-primary">Assistant</p>
           <h1 className="mt-1 truncate text-2xl font-semibold">{editName || selectedSystem.name}</h1>
           <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-            {editDescription || selectedSystem.description || "Reusable Prompt System"}
+            {editDescription || selectedSystem.description || "Reusable Assistant"}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -221,7 +221,7 @@ export function PromptEditor({
               size="sm"
               className="h-7 gap-1.5 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
               onClick={onRun}
-              title="Run Prompt System with runtime variables"
+              title="Run Assistant with runtime variables"
             >
               <Play className="size-3.5 fill-current" /> Run
             </Button>

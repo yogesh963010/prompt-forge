@@ -56,6 +56,7 @@ export function PromptForgeDashboard({
   const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Draft">("All");
   const [mobileNav, setMobileNav] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [systemToRun, setSystemToRun] = useState<{
@@ -66,7 +67,7 @@ export function PromptForgeDashboard({
   const [copied, setCopied] = useState(false);
   const [currentUser, setCurrentUser] = useState(getStoredUser());
 
-  // Prompt Systems list state
+  // Assistants list state
   const [systems, setSystems] = useState<PromptSystem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export function PromptForgeDashboard({
   const [createName, setCreateName] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createInstructions, setCreateInstructions] = useState("");
+  const [createVariables, setCreateVariables] = useState<{name: string, type: string}[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -139,7 +141,7 @@ export function PromptForgeDashboard({
     navigate({ to: "/login", replace: true });
   }, [navigate]);
 
-  // Fetch prompt systems list from backend
+  // Fetch assistants list from backend
   const loadPromptSystems = useCallback(async () => {
     setLoadingList(true);
     setListError(null);
@@ -152,7 +154,7 @@ export function PromptForgeDashboard({
         handleLogout();
         return;
       }
-      setListError(apiErr.message || "Failed to load Prompt Systems.");
+      setListError(apiErr.message || "Failed to load Assistants.");
     } finally {
       setLoadingList(false);
     }
@@ -322,7 +324,7 @@ export function PromptForgeDashboard({
     []
   );
 
-  // Fetch single Prompt System by ID
+  // Fetch single Assistant by ID
   const fetchDetails = useCallback(
     async (id: number) => {
       setLoadingDetails(true);
@@ -348,7 +350,7 @@ export function PromptForgeDashboard({
           handleLogout();
           return;
         }
-        setDetailsError(apiErr.message || "Prompt System not found.");
+        setDetailsError(apiErr.message || "Assistant not found.");
       } finally {
         setLoadingDetails(false);
       }
@@ -359,8 +361,7 @@ export function PromptForgeDashboard({
   const openEditor = useCallback(
     (id: number) => {
       setSelectedSystemId(id);
-      setScreen("editor");
-      setActiveTab("Overview");
+      setEditModalOpen(true);
       setMobileNav(false);
       fetchDetails(id);
     },
@@ -379,7 +380,7 @@ export function PromptForgeDashboard({
     if (!selectedSystem || saving) return;
     const trimmedName = editName.trim();
     if (!trimmedName) {
-      setSaveError("Prompt System name cannot be empty.");
+      setSaveError("Assistant name cannot be empty.");
       return;
     }
 
@@ -416,13 +417,14 @@ export function PromptForgeDashboard({
 
       // Re-validate variables
       runValidateVariables(updated.id);
+      setEditModalOpen(false);
     } catch (err: unknown) {
       const apiErr = err as { status?: number; message?: string };
       if (apiErr?.status === 401) {
         handleLogout();
         return;
       }
-      setSaveError(apiErr.message || "Failed to update Prompt System.");
+      setSaveError(apiErr.message || "Failed to update Assistant.");
     } finally {
       setSaving(false);
     }
@@ -432,7 +434,7 @@ export function PromptForgeDashboard({
   const handleCreatePromptSystem = async () => {
     const trimmedName = createName.trim();
     if (!trimmedName) {
-      setCreateError("Prompt System name is required.");
+      setCreateError("Assistant name is required.");
       return;
     }
 
@@ -444,7 +446,13 @@ export function PromptForgeDashboard({
         name: trimmedName,
         description: createDescription.trim() || null,
         instructions: createInstructions.trim() || null,
-        variables: [],
+        variables: createVariables.filter(v => v.name.trim()).map(v => ({
+          name: v.name.trim(),
+          label: v.name.trim(),
+          type: v.type,
+          required: false,
+          description: undefined
+        })),
         examples: [],
         output_format: {},
         modules: [],
@@ -455,8 +463,9 @@ export function PromptForgeDashboard({
       setCreateName("");
       setCreateDescription("");
       setCreateInstructions("");
+      setCreateVariables([]);
 
-      // Open the Parent Assistant experience for the newly created Prompt System
+      // Open the Parent Assistant experience for the newly created Assistant
       setSystemToRun(created);
       setScreen("parent_assistant");
     } catch (err: unknown) {
@@ -465,13 +474,13 @@ export function PromptForgeDashboard({
         handleLogout();
         return;
       }
-      setCreateError(apiErr.message || "Failed to create Prompt System.");
+      setCreateError(apiErr.message || "Failed to create Assistant.");
     } finally {
       setCreating(false);
     }
   };
 
-  // Handle Delete Prompt System Confirmation
+  // Handle Delete Assistant Confirmation
   const promptDelete = (system: PromptSystem) => {
     setSystemToDelete(system);
     setDeleteError(null);
@@ -501,13 +510,13 @@ export function PromptForgeDashboard({
         handleLogout();
         return;
       }
-      setDeleteError(apiErr.message || "Failed to delete Prompt System.");
+      setDeleteError(apiErr.message || "Failed to delete Assistant.");
     } finally {
       setDeleting(false);
     }
   };
 
-  // Handle Archive Prompt System
+  // Handle Archive Assistant
   const handleArchivePromptSystem = async (id: number) => {
     try {
       const updated = await promptSystemService.archive(id);
@@ -517,11 +526,11 @@ export function PromptForgeDashboard({
       }
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
-      setListError(apiErr.message || "Failed to archive Prompt System.");
+      setListError(apiErr.message || "Failed to archive Assistant.");
     }
   };
 
-  // Handle Unarchive Prompt System
+  // Handle Unarchive Assistant
   const handleUnarchivePromptSystem = async (id: number) => {
     try {
       const updated = await promptSystemService.unarchive(id);
@@ -531,18 +540,18 @@ export function PromptForgeDashboard({
       }
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
-      setListError(apiErr.message || "Failed to unarchive Prompt System.");
+      setListError(apiErr.message || "Failed to unarchive Assistant.");
     }
   };
 
-  // Handle Duplicate Prompt System
+  // Handle Duplicate Assistant
   const handleDuplicatePromptSystem = async (id: number) => {
     try {
       const duplicated = await promptSystemService.duplicate(id);
       setSystems((prev) => [duplicated, ...prev]);
     } catch (err: unknown) {
       const apiErr = err as { message?: string };
-      setListError(apiErr.message || "Failed to duplicate Prompt System.");
+      setListError(apiErr.message || "Failed to duplicate Assistant.");
     }
   };
 
@@ -603,24 +612,11 @@ export function PromptForgeDashboard({
       return;
     }
 
-    let parsedDefault: unknown = null;
-    if (varType.toLowerCase() === "number") {
-      if (varDefault.trim() !== "" && !isNaN(Number(varDefault))) {
-        parsedDefault = Number(varDefault);
-      } else if (varDefault.trim() !== "") {
-        setVarError("Default value must be a valid number for Number variable type.");
-        return;
-      }
-    } else if (varDefault.trim() !== "") {
-      parsedDefault = varDefault.trim();
-    }
-
     const variablePayload: VariableDefinition = {
       name: trimmedName,
       label: varLabel.trim() || trimmedName,
       type: varType.toLowerCase(),
       required: varRequired,
-      default: parsedDefault,
       description: varDescription.trim() || undefined,
     };
 
@@ -769,7 +765,7 @@ export function PromptForgeDashboard({
     if (selectedSystemId) {
       setSystemToRun({
         id: selectedSystemId,
-        name: editName || selectedSystem?.name || "Prompt System",
+        name: editName || selectedSystem?.name || "Assistant",
         variables: editVariables,
       });
       setRunModalOpen(true);
@@ -796,7 +792,8 @@ export function PromptForgeDashboard({
         />
       )}
       <div className="relative flex h-screen overflow-hidden">
-        <Sidebar
+        {screen !== "parent_assistant" && (
+          <Sidebar
           open={mobileNav}
           user={currentUser}
           systemCount={systems.length}
@@ -821,8 +818,10 @@ export function PromptForgeDashboard({
           }}
           onLogout={handleLogout}
         />
+        )}
         <main className="min-w-0 flex-1 h-screen overflow-y-auto">
-          <header className="sticky top-0 z-20 border-b border-border/60 bg-surface-glass px-4 py-3 backdrop-blur-xl sm:px-6">
+          {screen !== "parent_assistant" && (
+            <header className="sticky top-0 z-20 border-b border-border/60 bg-surface-glass px-4 py-3 backdrop-blur-xl sm:px-6">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
@@ -912,7 +911,7 @@ export function PromptForgeDashboard({
                       variant="ghost"
                       size="icon"
                       className="size-8 text-muted-foreground hover:text-destructive"
-                      title="Delete Prompt System"
+                      title="Delete Assistant"
                       onClick={() => promptDelete(selectedSystem)}
                     >
                       <Trash2 className="size-4" />
@@ -928,7 +927,7 @@ export function PromptForgeDashboard({
 
                 {screen === "library" && (
                   <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <Plus className="mr-1.5 size-3.5" /> New Prompt System
+                    <Plus className="mr-1.5 size-3.5" /> New Assistant
                   </Button>
                 )}
 
@@ -961,6 +960,7 @@ export function PromptForgeDashboard({
               </div>
             </div>
           </header>
+          )}
 
           {screen === "library" && (
             <PromptLibrary
@@ -1080,18 +1080,49 @@ export function PromptForgeDashboard({
             if (!open) setCreateError(null);
           }
         }}
-        title={screen === "parent_assistant" ? "New Assistant" : "New Prompt System"}
-        description={screen === "parent_assistant" ? "Create a new Assistant in your workspace." : "Create a new Prompt System in your workspace."}
-        submitText={screen === "parent_assistant" ? "Create Assistant" : "Create Prompt System"}
+        title={screen === "parent_assistant" ? "New Assistant" : "New Assistant"}
+        description={screen === "parent_assistant" ? "Create a new Assistant in your workspace." : "Create a new Assistant in your workspace."}
+        submitText={screen === "parent_assistant" ? "Create Assistant" : "Create Assistant"}
         createName={createName}
         setCreateName={setCreateName}
         createDescription={createDescription}
         setCreateDescription={setCreateDescription}
         createInstructions={createInstructions}
         setCreateInstructions={setCreateInstructions}
+        createVariables={createVariables}
+        setCreateVariables={setCreateVariables}
         creating={creating}
         createError={createError}
         onSubmit={handleCreatePromptSystem}
+      />
+
+      <CreatePromptSystemDialog
+        open={editModalOpen}
+        onOpenChange={(open) => {
+          setEditModalOpen(open);
+        }}
+        createName={editName}
+        setCreateName={setEditName}
+        createDescription={editDescription}
+        setCreateDescription={setEditDescription}
+        createInstructions={editInstructions}
+        setCreateInstructions={setEditInstructions}
+        createVariables={editVariables.map(v => ({ name: v.name, type: v.type || "text" }))}
+        setCreateVariables={(vars) => {
+          setEditVariables(vars.map(v => ({
+            name: v.name,
+            label: v.name,
+            type: v.type,
+            required: false,
+            description: undefined
+          })));
+        }}
+        creating={saving}
+        createError={saveError}
+        onSubmit={handleSave}
+        title="Edit Assistant"
+        description="Update your Assistant configuration."
+        submitText="Save Changes"
       />
 
       <DeletePromptSystemDialog

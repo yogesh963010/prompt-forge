@@ -21,9 +21,13 @@ class ConversationBase(BaseModel):
     title: Optional[str] = None
     prompt_system_id: Optional[int] = None
     module_id: Optional[int] = None
+    variables: Optional[dict] = Field(default_factory=dict)
 
 class ConversationCreate(ConversationBase):
     pass
+
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
 
 class ConversationRead(ConversationBase):
     id: int

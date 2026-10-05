@@ -85,7 +85,7 @@ export function SharingSection({ promptSystemId }: SharingSectionProps) {
         <div>
           <h2 className="text-sm font-semibold">Sharing</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Control who can access this Prompt System.
+            Control who can access this Assistant.
           </p>
         </div>
         <Button
@@ -109,7 +109,7 @@ export function SharingSection({ promptSystemId }: SharingSectionProps) {
       <div className="rounded-lg bg-card/55 p-5 ring-1 ring-border/60">
         <h3 className="text-sm font-semibold text-foreground">Visibility</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Choose who can view and use this Prompt System.
+          Choose who can view and use this Assistant.
         </p>
 
         <div className="mt-4 space-y-3">
@@ -138,7 +138,7 @@ export function SharingSection({ promptSystemId }: SharingSectionProps) {
                 <span className="text-sm font-medium">Private</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Only you can access this Prompt System.
+                Only you can access this Assistant.
               </p>
             </div>
           </button>
@@ -168,7 +168,7 @@ export function SharingSection({ promptSystemId }: SharingSectionProps) {
                 <span className="text-sm font-medium">Anyone with the link</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Anyone with the share link can view and use this Prompt System.
+                Anyone with the share link can view and use this Assistant.
               </p>
             </div>
           </button>

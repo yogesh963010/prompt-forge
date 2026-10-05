@@ -361,7 +361,7 @@ export function RagAssistant({ onBack }: RagAssistantProps = {}) {
             onClick={onBack}
           >
             <ArrowLeft className="size-4" />
-            <span>Back to Prompt Systems</span>
+            <span>Back to Assistants</span>
           </Button>
         </div>
       )}

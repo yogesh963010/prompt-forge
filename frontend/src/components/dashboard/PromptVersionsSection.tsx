@@ -161,7 +161,7 @@ export function PromptVersionsSection({
       setRestoreSuccess(res.message);
       setRestoreModalOpen(false);
       setViewVersion(null);
-      // Reload versions and notify parent to reload current Prompt System
+      // Reload versions and notify parent to reload current Assistant
       await fetchVersions(promptSystemId);
       if (onRestored) {
         onRestored();
@@ -179,9 +179,9 @@ export function PromptVersionsSection({
     return (
       <div className="rounded-lg bg-card/55 p-8 text-center ring-1 ring-border/60">
         <History className="mx-auto size-8 text-muted-foreground" />
-        <h3 className="mt-2 text-sm font-semibold">Select a Prompt System</h3>
+        <h3 className="mt-2 text-sm font-semibold">Select a Assistant</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Save or choose a Prompt System to view and manage its version history.
+          Save or choose a Assistant to view and manage its version history.
         </p>
       </div>
     );
@@ -375,7 +375,7 @@ export function PromptVersionsSection({
           <DialogHeader>
             <DialogTitle>Create New Version</DialogTitle>
             <DialogDescription>
-              Capture an immutable snapshot of the current Prompt System configuration.
+              Capture an immutable snapshot of the current Assistant configuration.
             </DialogDescription>
           </DialogHeader>
 
@@ -691,7 +691,7 @@ export function PromptVersionsSection({
               Restore Version {versionToRestore?.version_number}?
             </DialogTitle>
             <DialogDescription>
-              This will replace the current Prompt System configuration with the state from Version{" "}
+              This will replace the current Assistant configuration with the state from Version{" "}
               {versionToRestore?.version_number}.
             </DialogDescription>
           </DialogHeader>

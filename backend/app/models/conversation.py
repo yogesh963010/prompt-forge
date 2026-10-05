@@ -8,7 +8,9 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    JSON,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database.base import Base
@@ -44,6 +46,11 @@ class Conversation(Base):
         index=True,
     )
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    variables: Mapped[Optional[dict]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=True,
+        default=dict,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
