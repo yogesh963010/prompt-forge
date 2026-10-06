@@ -71,4 +71,57 @@ export const conversationsService = {
     }
     return apiRequest<AssistantContext>(url, { method: "GET" });
   },
+
+  /**
+   * Get conversation sharing status: GET /conversations/{id}/sharing
+   */
+  async getSharingStatus(conversationId: number): Promise<SharingStatus> {
+    return apiRequest<SharingStatus>(`/conversations/${conversationId}/sharing`, {
+      method: "GET",
+    });
+  },
+
+  /**
+   * Update conversation sharing status: PATCH /conversations/{id}/sharing
+   */
+  async updateSharingStatus(conversationId: number, visibility: string): Promise<SharingStatus> {
+    return apiRequest<SharingStatus>(`/conversations/${conversationId}/sharing`, {
+      method: "PATCH",
+      body: JSON.stringify({ visibility }),
+    });
+  },
+
+  /**
+   * Get public shared chat: GET /shared/chat/{shareToken}
+   */
+  async getPublicSharedChat(shareToken: string): Promise<PublicSharedChat> {
+    return apiRequest<PublicSharedChat>(`/shared/chat/${shareToken}`, {
+      method: "GET",
+    });
+  },
+
+  /**
+   * Copy assistant from shared chat: POST /shared/chat/{shareToken}/copy-assistant
+   */
+  async copyAssistantFromSharedChat(shareToken: string): Promise<any> {
+    return apiRequest<any>(`/shared/chat/${shareToken}/copy-assistant`, {
+      method: "POST",
+    });
+  },
 };
+
+export interface PublicSharedChat {
+  share_token: string;
+  title?: string;
+  assistant_name?: string | null;
+  prompt_system_id?: number | null;
+  created_at: string;
+  messages: Message[];
+}
+
+export interface SharingStatus {
+  visibility: string;
+  share_token: string | null;
+  share_url: string | null;
+}
+

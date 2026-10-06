@@ -1,6 +1,6 @@
 """create prompt_run_history table
 
-Revision ID: 008_create_prompt_run_history_table
+Revision ID: 008_create_run_history_table
 Revises: 4bd029ef8df2
 Create Date: 2026-09-30 14:15:00.000000
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision: str = '008_create_prompt_run_history_table'
+revision: str = '008_create_run_history_table'
 down_revision: Union[str, Sequence[str], None] = '4bd029ef8df2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

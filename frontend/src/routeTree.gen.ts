@@ -16,6 +16,7 @@ import { Route as ModulesRouteImport } from './routes/modules'
 import { Route as RagRouteImport } from './routes/rag'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SharedShareTokenRouteImport } from './routes/shared.$shareToken'
+import { Route as SharedChatShareTokenRouteImport } from './routes/shared.chat.$shareToken'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,11 @@ const SharedShareTokenRoute = SharedShareTokenRouteImport.update({
   path: '/shared/$shareToken',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SharedChatShareTokenRoute = SharedChatShareTokenRouteImport.update({
+  id: '/shared/chat/$shareToken',
+  path: '/shared/chat/$shareToken',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
   '/shared/$shareToken': typeof SharedShareTokenRoute
+  '/shared/chat/$shareToken': typeof SharedChatShareTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
   '/shared/$shareToken': typeof SharedShareTokenRoute
+  '/shared/chat/$shareToken': typeof SharedChatShareTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +88,7 @@ export interface FileRoutesById {
   '/rag': typeof RagRoute
   '/register': typeof RegisterRoute
   '/shared/$shareToken': typeof SharedShareTokenRoute
+  '/shared/chat/$shareToken': typeof SharedChatShareTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/rag'
     | '/register'
     | '/shared/$shareToken'
+    | '/shared/chat/$shareToken'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/rag'
     | '/register'
     | '/shared/$shareToken'
+    | '/shared/chat/$shareToken'
   id:
     | '__root__'
     | '/'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/rag'
     | '/register'
     | '/shared/$shareToken'
+    | '/shared/chat/$shareToken'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +131,7 @@ export interface RootRouteChildren {
   RagRoute: typeof RagRoute
   RegisterRoute: typeof RegisterRoute
   SharedShareTokenRoute: typeof SharedShareTokenRoute
+  SharedChatShareTokenRoute: typeof SharedChatShareTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SharedShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shared/chat/$shareToken': {
+      id: '/shared/chat/$shareToken'
+      path: '/shared/chat/$shareToken'
+      fullPath: '/shared/chat/$shareToken'
+      preLoaderRoute: typeof SharedChatShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   RagRoute: RagRoute,
   RegisterRoute: RegisterRoute,
   SharedShareTokenRoute: SharedShareTokenRoute,
+  SharedChatShareTokenRoute: SharedChatShareTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

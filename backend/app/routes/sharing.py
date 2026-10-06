@@ -14,8 +14,41 @@ from ..services.sharing_service import (
     copy_shared_prompt_system,
     run_public_shared_system,
 )
+from ..services.conversation_service import conversation_service
 
 router = APIRouter(prefix="/shared", tags=["Sharing"])
+
+
+@router.get(
+    "/chat/{share_token}",
+    status_code=status.HTTP_200_OK,
+    summary="Get Public Shared Chat",
+    description="Retrieve public read-only details of a shared conversation without exposing credentials or other chats.",
+)
+async def get_public_shared_chat_endpoint(
+    share_token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await conversation_service.get_public_shared_conversation(db=db, share_token=share_token)
+
+
+@router.post(
+    "/chat/{share_token}/copy-assistant",
+    response_model=PromptSystemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Copy Assistant From Shared Chat",
+    description="Create a private copy of the Assistant that powers the shared chat, owned by the currently authenticated user.",
+)
+async def copy_assistant_from_shared_chat_endpoint(
+    share_token: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await conversation_service.copy_assistant_from_shared_chat(
+        db=db,
+        share_token=share_token,
+        new_owner_id=current_user.id,
+    )
 
 
 @router.get(

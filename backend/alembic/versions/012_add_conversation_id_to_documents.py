@@ -1,6 +1,6 @@
 """add conversation_id to documents
 
-Revision ID: 012_add_conversation_id_to_documents
+Revision ID: 012_add_conv_id_to_documents
 Revises: 011_add_railway_document_id
 Create Date: 2026-10-05 13:58:00.000000
 
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '012_add_conversation_id_to_documents'
+revision = '012_add_conv_id_to_documents'
 down_revision = '011_add_railway_document_id'
 branch_labels = None
 depends_on = None

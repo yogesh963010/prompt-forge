@@ -23,9 +23,53 @@ from ..services.prompt_system_service import (
     update_prompt_system,
 )
 from ..services.sharing_service import get_sharing_status, update_sharing_status
+from ..services.import_export_service import (
+    export_prompt_system,
+    import_prompt_system,
+    validate_import_payload,
+)
 from ..utils.variable_parser import validate_prompt_variables
 
 router = APIRouter(prefix="/prompt-systems", tags=["Prompt Systems"])
+
+
+@router.post(
+    "/import/preview",
+    status_code=status.HTTP_200_OK,
+    summary="Preview an Assistant Import Payload",
+    description="Validates a PromptForge Assistant JSON payload and returns high-level preview details.",
+)
+async def preview_import_endpoint(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+):
+    validate_import_payload(payload)
+    assistant = payload.get("assistant", {})
+    sub_assistants = payload.get("sub_assistants", [])
+    return {
+        "valid": True,
+        "name": assistant.get("name"),
+        "description": assistant.get("description"),
+        "instructions": assistant.get("instructions"),
+        "variables_count": len(payload.get("variables", [])),
+        "sub_assistants_count": len(sub_assistants),
+        "sub_assistants": [sa.get("name") for sa in sub_assistants if isinstance(sa, dict)],
+    }
+
+
+@router.post(
+    "/import",
+    response_model=PromptSystemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Import Assistant Configuration",
+    description="Creates a new private Assistant owned by the authenticated user from a valid PromptForge JSON export.",
+)
+async def import_assistant_endpoint(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await import_prompt_system(db=db, data=payload, owner_id=current_user.id)
 
 
 @router.post(
@@ -353,6 +397,13 @@ async def get_sharing_status_endpoint(
     summary="Update Sharing Settings",
     description="Change the sharing visibility of a Prompt System owned by the authenticated user.",
 )
+@router.put(
+    "/{prompt_system_id}/sharing",
+    response_model=SharingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Sharing Settings (PUT)",
+    description="Change the sharing visibility of a Prompt System owned by the authenticated user.",
+)
 async def update_sharing_status_endpoint(
     prompt_system_id: int,
     payload: SharingUpdateRequest,
@@ -378,3 +429,31 @@ async def update_sharing_status_endpoint(
         prompt_system=prompt_system,
         visibility=payload.visibility,
     )
+
+
+@router.get(
+    "/{prompt_system_id}/export",
+    status_code=status.HTTP_200_OK,
+    summary="Export Assistant Configuration",
+    description="Export a portable JSON configuration of an Assistant without private user credentials or chats.",
+)
+async def export_assistant_endpoint(
+    prompt_system_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    prompt_system = await get_prompt_system_by_id(db=db, prompt_system_id=prompt_system_id)
+    if not prompt_system:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prompt System not found.",
+        )
+
+    if prompt_system.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to export this Prompt System.",
+        )
+
+    return await export_prompt_system(db=db, prompt_system=prompt_system)
+

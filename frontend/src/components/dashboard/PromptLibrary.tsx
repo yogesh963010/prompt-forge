@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   Copy,
+  Download,
   Edit2,
   FileCode2,
   Filter,
@@ -18,6 +19,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Upload,
   Variable,
   X,
 } from "lucide-react";
@@ -34,9 +36,10 @@ interface SystemCardProps {
   onUnarchive?: () => void;
   onDuplicate?: () => void;
   onRun?: () => void;
+  onExport?: () => void;
 }
 
-export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onDuplicate, onRun }: SystemCardProps) {
+export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onDuplicate, onRun, onExport }: SystemCardProps) {
   const varCount = Array.isArray(item.variables) ? item.variables.length : 0;
   const modCount = Array.isArray(item.modules) ? item.modules.length : 0;
 
@@ -157,6 +160,21 @@ export function SystemCard({ item, onOpen, onDelete, onArchive, onUnarchive, onD
           </div>
 
           <div className="flex items-center gap-1">
+            {onExport && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7.5 rounded-lg text-muted-foreground hover:bg-card hover:text-foreground transition-colors"
+                title="Export Assistant (.json)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExport();
+                }}
+              >
+                <Download className="size-3.5" />
+              </Button>
+            )}
+
             {onDuplicate && (
               <Button
                 variant="ghost"
@@ -251,6 +269,8 @@ interface PromptLibraryProps {
   onUnarchive?: (id: number) => void;
   onDuplicate?: (id: number) => void;
   onRun?: (system: PromptSystem) => void;
+  onExport?: (system: PromptSystem) => void;
+  onImport?: () => void;
 }
 
 export function PromptLibrary({
@@ -272,6 +292,8 @@ export function PromptLibrary({
   onUnarchive,
   onDuplicate,
   onRun,
+  onExport,
+  onImport,
 }: PromptLibraryProps) {
   const activeCount = systems.filter((s) => !s.archived).length;
   const archivedCount = systems.filter((s) => s.archived).length;
@@ -300,10 +322,23 @@ export function PromptLibrary({
           )}
         </div>
 
-        {/* Status Filter Chips */}
-        <div className="flex items-center gap-1.5 rounded-xl bg-card/65 p-1 ring-1 ring-border/60 backdrop-blur shadow-xs">
-          <button
-            onClick={() => setStatusFilter("All")}
+        {/* Action and Filter Chips */}
+        <div className="flex items-center gap-2">
+          {onImport && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 px-3 rounded-xl border-border/70 bg-card/65 font-semibold text-xs gap-1.5 shadow-xs hover:border-primary/50"
+              onClick={onImport}
+            >
+              <Upload className="size-3.5 text-primary" />
+              <span>Import</span>
+            </Button>
+          )}
+
+          <div className="flex items-center gap-1.5 rounded-xl bg-card/65 p-1 ring-1 border-border/60 backdrop-blur shadow-xs">
+            <button
+              onClick={() => setStatusFilter("All")}
             className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${statusFilter === "All"
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -331,6 +366,7 @@ export function PromptLibrary({
           </button>
         </div>
       </div>
+    </div>
 
       {/* Error state */}
       {error && (
@@ -378,6 +414,7 @@ export function PromptLibrary({
                   onUnarchive={onUnarchive ? () => onUnarchive(item.id) : undefined}
                   onDuplicate={onDuplicate ? () => onDuplicate(item.id) : undefined}
                   onRun={onRun ? () => onRun(item) : undefined}
+                  onExport={onExport ? () => onExport(item) : undefined}
                 />
               ))}
             </div>
@@ -396,9 +433,16 @@ export function PromptLibrary({
                       : "Create your first Assistant to begin orchestrating prompts, modules, and assistants."}
                 </p>
                 {!search && (
-                  <Button onClick={onNew} size="sm" className="mt-5 rounded-xl font-semibold gap-1.5">
-                    <Plus className="size-3.5" /> Create Assistant
-                  </Button>
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                    {onImport && (
+                      <Button onClick={onImport} variant="outline" size="sm" className="rounded-xl font-semibold gap-1.5">
+                        <Upload className="size-3.5 text-primary" /> Import Assistant
+                      </Button>
+                    )}
+                    <Button onClick={onNew} size="sm" className="rounded-xl font-semibold gap-1.5">
+                      <Plus className="size-3.5" /> Create Assistant
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

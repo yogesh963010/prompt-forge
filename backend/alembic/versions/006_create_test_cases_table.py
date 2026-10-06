@@ -1,7 +1,7 @@
 """create test_cases table
 
 Revision ID: 006_create_test_cases_table
-Revises: 005_create_module_references_table
+Revises: 005_create_module_refs_table
 Create Date: 2026-09-28 12:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '006_create_test_cases_table'
-down_revision: Union[str, Sequence[str], None] = '005_create_module_references_table'
+down_revision: Union[str, Sequence[str], None] = '005_create_module_refs_table'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

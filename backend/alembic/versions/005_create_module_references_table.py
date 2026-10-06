@@ -1,6 +1,6 @@
 """create module_references table
 
-Revision ID: 005_create_module_references_table
+Revision ID: 005_create_module_refs_table
 Revises: 004_create_prompt_modules_table
 Create Date: 2026-09-25 15:00:00.000000
 
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
-revision: str = '005_create_module_references_table'
+revision: str = '005_create_module_refs_table'
 down_revision: Union[str, Sequence[str], None] = '004_create_prompt_modules_table'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

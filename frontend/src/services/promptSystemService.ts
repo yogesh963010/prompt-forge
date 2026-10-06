@@ -197,6 +197,46 @@ export const promptSystemService = {
       method: "DELETE",
     });
   },
+
+  /**
+   * Export an Assistant: GET /prompt-systems/{id}/export
+   */
+  async exportAssistant(id: number): Promise<Record<string, unknown>> {
+    return apiRequest<Record<string, unknown>>(`/prompt-systems/${id}/export`, {
+      method: "GET",
+    });
+  },
+
+  /**
+   * Preview an Assistant import: POST /prompt-systems/import/preview
+   */
+  async previewImport(payload: unknown): Promise<ImportPreviewResponse> {
+    return apiRequest<ImportPreviewResponse>("/prompt-systems/import/preview", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Import an Assistant: POST /prompt-systems/import
+   */
+  async importAssistant(payload: unknown): Promise<PromptSystem> {
+    return apiRequest<PromptSystem>("/prompt-systems/import", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 };
+
+export interface ImportPreviewResponse {
+  valid: boolean;
+  name?: string;
+  description?: string | null;
+  instructions?: string | null;
+  variables_count: number;
+  sub_assistants_count: number;
+  sub_assistants: string[];
+}
+
 
 

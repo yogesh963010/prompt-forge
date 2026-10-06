@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Edit2, Paperclip, MoreHorizontal, MessageSquare, Search, ChevronDown, RefreshCw, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Bot, FileText, Loader2, Plus, Send, Trash2, Edit2, Paperclip, MoreHorizontal, MessageSquare, Search, ChevronDown, RefreshCw, X, Share2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ import { documentService, type DocumentItem } from "@/services/documentService";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { ModuleEditor } from "./ModuleEditor";
+import { ShareChatModal } from "./ShareChatModal";
 
 interface ParentAssistantChatProps {
   promptSystemId: number;
@@ -74,6 +75,9 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
   const [isClearChatModalOpen, setIsClearChatModalOpen] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
   const [clearChatError, setClearChatError] = useState<string | null>(null);
+
+  const [shareChatOpen, setShareChatOpen] = useState(false);
+  const [chatToShare, setChatToShare] = useState<Conversation | null>(null);
 
   const isCreatingInitialChatRef = useRef(false);
 
@@ -578,7 +582,17 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
                       <MoreHorizontal className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-32">
+                  <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChatToShare(conv);
+                        setShareChatOpen(true);
+                      }}
+                    >
+                      <Share2 className="size-4 mr-2" />
+                      Share Chat
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
@@ -608,8 +622,29 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
       <div className="flex flex-1 flex-col overflow-hidden bg-background">
         {/* Header */}
         <header className="h-14 border-b border-border/60 bg-background flex items-center justify-between px-6 shrink-0">
-          <h2 className="text-lg font-bold">{system.name}</h2>
-          <div className="flex items-center">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold">{system.name}</h2>
+            {currentConversation && (
+              <span className="hidden sm:inline-block text-xs text-muted-foreground border-l border-border/70 pl-3 truncate max-w-xs">
+                {currentConversation.title || "Current Chat"}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {currentConversation && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs rounded-lg border-border/80 shadow-xs"
+                onClick={() => {
+                  setChatToShare(currentConversation);
+                  setShareChatOpen(true);
+                }}
+              >
+                <Share2 className="size-3.5" />
+                <span>Share Chat</span>
+              </Button>
+            )}
             <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-full pl-1 pr-3 py-1 text-sm font-medium">
               <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">Y</span>
               Yogesh
@@ -1044,6 +1079,15 @@ export function ParentAssistantChat({ promptSystemId, onBack }: ParentAssistantC
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Share Chat Modal */}
+      <ShareChatModal
+        open={shareChatOpen}
+        onOpenChange={setShareChatOpen}
+        conversationId={chatToShare?.id || null}
+        chatTitle={chatToShare?.title || null}
+      />
     </div>
   );
 }
+
