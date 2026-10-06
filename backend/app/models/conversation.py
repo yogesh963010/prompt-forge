@@ -2,6 +2,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -46,6 +47,10 @@ class Conversation(Base):
         index=True,
     )
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Visibility: 'private' (default) or 'public_link'
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default='private', server_default='private')
+    # Secure token used when visibility is public_link; null otherwise
+    share_token: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True, index=True)
     variables: Mapped[Optional[dict]] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"),
         nullable=True,

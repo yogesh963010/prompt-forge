@@ -1,6 +1,6 @@
 """add archived to prompt_systems
 
-Revision ID: 003_add_archived_to_prompt_systems
+Revision ID: 003_add_archived_prompt_systems
 Revises: 002_create_prompt_systems_table
 Create Date: 2026-09-24 16:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '003_add_archived_to_prompt_systems'
+revision: str = '003_add_archived_prompt_systems'
 down_revision: Union[str, Sequence[str], None] = '002_create_prompt_systems_table'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

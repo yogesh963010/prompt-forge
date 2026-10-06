@@ -60,6 +60,7 @@ async def update_sharing_status(
         prompt_system.visibility = "public_link"
     else:
         prompt_system.visibility = "private"
+        prompt_system.share_token = None
 
     await db.commit()
     await db.refresh(prompt_system)

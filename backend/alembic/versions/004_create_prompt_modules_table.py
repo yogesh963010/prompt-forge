@@ -1,7 +1,7 @@
 """create prompt_modules table
 
 Revision ID: 004_create_prompt_modules_table
-Revises: 003_add_archived_to_prompt_systems
+Revises: 003_add_archived_prompt_systems
 Create Date: 2026-09-25 12:40:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '004_create_prompt_modules_table'
-down_revision: Union[str, Sequence[str], None] = '003_add_archived_to_prompt_systems'
+down_revision: Union[str, Sequence[str], None] = '003_add_archived_prompt_systems'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

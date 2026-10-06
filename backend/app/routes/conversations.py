@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..schemas.conversation import ConversationCreate, ConversationRead, MessageCreate, MessageRead, ConversationUpdate
+from ..schemas.sharing import SharingStatusResponse, SharingUpdateRequest
 from ..services.conversation_service import conversation_service
 from ..dependencies.auth import get_current_user
 from ..models.user import User
@@ -104,3 +105,44 @@ async def delete_message(
     deleted = await conversation_service.delete_message(db, current_user.id, conversation_id, message_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Message not found")
+
+
+@router.get(
+    "/{conversation_id}/sharing",
+    response_model=SharingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get Chat Sharing Status",
+    description="Retrieve sharing status and secure link for a conversation owned by the authenticated user.",
+)
+async def get_conversation_sharing_endpoint(
+    conversation_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await conversation_service.get_sharing_status(db, current_user.id, conversation_id)
+
+
+@router.patch(
+    "/{conversation_id}/sharing",
+    response_model=SharingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Chat Sharing Status",
+    description="Update visibility mode (private or public_link) for a conversation owned by the authenticated user.",
+)
+@router.put(
+    "/{conversation_id}/sharing",
+    response_model=SharingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update Chat Sharing Status (PUT)",
+    description="Update visibility mode (private or public_link) for a conversation owned by the authenticated user.",
+)
+async def update_conversation_sharing_endpoint(
+    conversation_id: int,
+    payload: SharingUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await conversation_service.update_sharing_status(
+        db, current_user.id, conversation_id, payload.visibility
+    )
+

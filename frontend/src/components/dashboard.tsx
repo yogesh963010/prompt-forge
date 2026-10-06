@@ -1,5 +1,6 @@
 import {
   Check,
+  Download,
   Loader2,
   LogOut,
   Menu,
@@ -7,6 +8,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -35,11 +37,12 @@ import { PromptPreviewDialog } from "./dashboard/PromptPreview";
 import { PromptRunModal } from "./dashboard/PromptRunModal";
 import { ParentAssistantChat } from "./dashboard/ParentAssistantChat";
 import { Sidebar } from "./dashboard/Sidebar";
-import type { Tab } from "./dashboard/types";
 import {
   DeleteVariableDialog,
   VariableModal,
 } from "./dashboard/VariablesSection";
+import { ImportAssistantModal } from "./dashboard/ImportAssistantModal";
+import { downloadAssistantExport } from "@/lib/exportUtils";
 
 export function PromptForgeDashboard({
   initialScreen = "library",
@@ -126,6 +129,17 @@ export function PromptForgeDashboard({
   // Variable validation & detection state
   const [validationResult, setValidationResult] = useState<VariableValidationResponse | null>(null);
   const [validatingVariables, setValidatingVariables] = useState(false);
+
+  // Import modal state
+  const [importOpen, setImportOpen] = useState(false);
+
+  const handleExportAssistant = async (system: PromptSystem) => {
+    try {
+      await downloadAssistantExport(system.id, system.name);
+    } catch (err: any) {
+      alert(err.message || "Failed to export assistant.");
+    }
+  };
 
   // Route protection: redirect to /login if unauthenticated
   useEffect(() => {
@@ -926,13 +940,23 @@ export function PromptForgeDashboard({
                 )}
 
                 {screen === "library" && (
-                  <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <Plus className="mr-1.5 size-3.5" /> New Assistant
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                      <Upload className="mr-1.5 size-3.5" /> Import
+                    </Button>
+                    <Button size="sm" onClick={() => setNewOpen(true)}>
+                      <Plus className="mr-1.5 size-3.5" /> New Assistant
+                    </Button>
+                  </div>
                 )}
 
                 {screen === "editor" && (
                   <>
+                    {currentSystem && (
+                      <Button size="sm" variant="outline" onClick={() => handleExportAssistant(currentSystem)}>
+                        <Download className="mr-1.5 size-3.5" /> Export
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => setPreviewOpen(true)}>
                       <Sparkles className="mr-1.5 size-3.5" /> Preview Prompt
                     </Button>
@@ -988,6 +1012,8 @@ export function PromptForgeDashboard({
                 setSystemToRun({ id: system.id, name: system.name, variables: system.variables });
                 setScreen("parent_assistant");
               }}
+              onExport={handleExportAssistant}
+              onImport={() => setImportOpen(true)}
             />
           )}
 
@@ -1220,6 +1246,15 @@ export function PromptForgeDashboard({
         deleting={moduleDeleting}
         error={moduleDeleteError}
         onConfirm={handleConfirmDeleteModule}
+      />
+
+      <ImportAssistantModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImportSuccess={(imported) => {
+          loadPromptSystems();
+          openEditor(imported.id);
+        }}
       />
     </div>
   );
