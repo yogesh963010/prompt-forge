@@ -37,6 +37,8 @@ class AskRequest(BaseModel):
     module_id: Optional[int] = Field(None, description="Optional Child Assistant Module ID.")
     session_id: Optional[str] = Field(None, description="Optional legacy session identifier for context resolution.")
     variables: Optional[Dict[str, Any]] = Field(None, description="Optional current runtime variable values.")
+    provider: Optional[str] = Field(None, description="Optional AI provider override (openai, anthropic, gemini, groq).")
+    model: Optional[str] = Field(None, description="Optional AI model identifier.")
 
 
 class ChatResponse(BaseModel):
@@ -145,6 +147,8 @@ async def ask(
             conversation_id=conversation_id,
             runtime_variables=request.variables,
             db=db,
+            provider=request.provider,
+            model=request.model,
         )
 
         return ChatResponse(
@@ -152,6 +156,8 @@ async def ask(
             sources=[SourceItem(**s) for s in result.get("sources", [])],
         )
 
+    except HTTPException:
+        raise
     except ValueError as val_err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

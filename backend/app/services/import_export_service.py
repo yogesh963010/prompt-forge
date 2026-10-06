@@ -54,6 +54,14 @@ async def export_prompt_system(
             "enabled": ref.enabled,
         })
 
+    vars_raw = prompt_system.variables
+    if isinstance(vars_raw, list):
+        vars_payload = copy.deepcopy(vars_raw)
+    elif isinstance(vars_raw, dict):
+        vars_payload = list(vars_raw.values()) if vars_raw else []
+    else:
+        vars_payload = []
+
     payload = {
         "format": EXPORT_FORMAT,
         "version": EXPORT_VERSION,
@@ -62,8 +70,10 @@ async def export_prompt_system(
             "name": prompt_system.name,
             "description": prompt_system.description,
             "instructions": prompt_system.instructions,
+            "ai_provider": prompt_system.ai_provider,
+            "model": prompt_system.model,
         },
-        "variables": copy.deepcopy(prompt_system.variables) if prompt_system.variables is not None else [],
+        "variables": vars_payload,
         "examples": copy.deepcopy(prompt_system.examples) if prompt_system.examples is not None else [],
         "output_format": copy.deepcopy(prompt_system.output_format) if prompt_system.output_format is not None else {},
         "modules_config": copy.deepcopy(prompt_system.modules) if prompt_system.modules is not None else [],
@@ -111,7 +121,9 @@ def validate_import_payload(data: Dict[str, Any]) -> None:
 
     # Validate variables if present
     variables = data.get("variables", [])
-    if not isinstance(variables, list):
+    if isinstance(variables, dict):
+        data["variables"] = list(variables.values())
+    elif not isinstance(variables, list):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="'variables' must be an array.",
@@ -188,6 +200,8 @@ async def import_prompt_system(
         archived=False,
         visibility="private",
         share_token=None,
+        ai_provider=assistant_data.get("ai_provider") or assistant_data.get("provider"),
+        model=assistant_data.get("model"),
     )
     db.add(new_system)
     await db.flush()

@@ -64,6 +64,9 @@ class PromptSystem(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false", index=True)
+    # AI Provider & Model configuration for Bring Your Own Key (BYOK)
+    ai_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default=None)
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

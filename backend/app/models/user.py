@@ -9,6 +9,7 @@ from ..database.base import Base
 if TYPE_CHECKING:
     from .prompt_system import PromptSystem
     from .prompt_module import PromptModule
+    from .ai_provider_credential import AIProviderCredential
 
 
 class User(Base):
@@ -40,6 +41,11 @@ class User(Base):
     )
     prompt_modules: Mapped[List["PromptModule"]] = relationship(
         "PromptModule",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+    ai_provider_credentials: Mapped[List["AIProviderCredential"]] = relationship(
+        "AIProviderCredential",
         back_populates="owner",
         cascade="all, delete-orphan",
     )

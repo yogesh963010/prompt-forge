@@ -23,6 +23,8 @@ async def create_prompt_system(
         examples=data.examples,
         output_format=data.output_format,
         modules=data.modules,
+        ai_provider=data.ai_provider,
+        model=data.model,
     )
     db.add(prompt_system)
     await db.commit()
@@ -98,6 +100,8 @@ async def duplicate_prompt_system(
         modules=copy.deepcopy(original.modules) if original.modules is not None else list(),
         version=1,
         archived=False,
+        ai_provider=original.ai_provider,
+        model=original.model,
     )
     db.add(new_prompt_system)
     await db.commit()

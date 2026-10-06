@@ -21,13 +21,14 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .generator import get_llm, generate_answer
+from .generator import get_llm, generate_answer, get_llm_for_provider
 from .conversation import rewrite_question
 from .retriever import retrieve_scoped_documents, get_sources_from_documents
 from ..models.prompt_system import PromptSystem
 from ..models.prompt_module import PromptModule
 from ..models.conversation import Conversation, Message
 from ..services.conversation_service import conversation_service
+from ..services.credential_service import get_decrypted_api_key_for_runtime
 from ..services.runtime_context_builder import build_runtime_context
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ async def run_promptforge_rag(
     conversation_id: Optional[int] = None,
     runtime_variables: Optional[Dict[str, Any]] = None,
     db: Optional[AsyncSession] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Run conversational RAG pipeline inside PromptForge with deterministic runtime context building.
@@ -61,6 +64,10 @@ async def run_promptforge_rag(
         Current runtime variable values provided by user.
     db : Optional[AsyncSession]
         Database session for fetching instructions, variables, and history.
+    provider : Optional[str]
+        Optional AI provider override (openai, anthropic, gemini, groq).
+    model : Optional[str]
+        Optional AI model identifier.
 
     Returns
     -------
@@ -71,7 +78,27 @@ async def run_promptforge_rag(
         raise ValueError("Question cannot be empty.")
 
     clean_question = question.strip()
-    llm = get_llm()
+
+    # Determine provider and model for this Assistant runtime
+    target_provider = provider
+    target_model = model
+
+    if not target_provider and prompt_system_id and db:
+        ps = await db.get(PromptSystem, prompt_system_id)
+        if ps:
+            target_provider = getattr(ps, "ai_provider", None) or getattr(ps, "provider", None)
+            target_model = target_model or getattr(ps, "model", None)
+            if not target_provider and isinstance(ps.output_format, dict):
+                target_provider = ps.output_format.get("provider") or ps.output_format.get("ai_provider")
+                target_model = target_model or ps.output_format.get("model")
+
+    # If an AI Provider is configured, load user's encrypted key and create provider client
+    if target_provider and db:
+        target_provider = target_provider.strip().lower()
+        decrypted_key = await get_decrypted_api_key_for_runtime(db, user_id, target_provider)
+        llm = get_llm_for_provider(target_provider, decrypted_key, target_model)
+    else:
+        llm = get_llm()
 
     # 1. Fetch conversation history from PromptForge DB
     history_messages: List[Message] = []

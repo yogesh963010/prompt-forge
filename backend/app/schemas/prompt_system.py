@@ -107,6 +107,8 @@ class PromptSystemBase(BaseModel):
         default_factory=list,
         description="Module references / configuration",
     )
+    ai_provider: Optional[str] = Field(None, description="Optional configured AI provider (openai, anthropic, gemini, groq)")
+    model: Optional[str] = Field(None, description="Optional configured model identifier")
 
     @field_validator("name")
     @classmethod
@@ -140,6 +142,8 @@ class PromptSystemUpdate(BaseModel):
     output_format: Optional[Union[str, Dict[str, Any], List[Any]]] = None
     modules: Optional[Union[List[Any], Dict[str, Any]]] = None
     visibility: Optional[str] = None
+    ai_provider: Optional[str] = None
+    model: Optional[str] = None
 
     @field_validator("name")
     @classmethod
@@ -177,6 +181,8 @@ class PromptSystemResponse(BaseModel):
     archived: bool = False
     visibility: str = "private"
     share_token: Optional[str] = None
+    ai_provider: Optional[str] = None
+    model: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

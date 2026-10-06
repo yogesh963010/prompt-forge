@@ -63,6 +63,230 @@ class GroqLLMWrapper:
         return ResponseObj(content.strip())
 
 
+def _normalize_input_to_messages(input_val) -> List[Dict[str, str]]:
+    if isinstance(input_val, str):
+        return [{"role": "user", "content": input_val}]
+    elif isinstance(input_val, list):
+        messages = []
+        for m in input_val:
+            if isinstance(m, dict):
+                messages.append(m)
+            elif hasattr(m, "content"):
+                role = "user"
+                m_type = getattr(m, "type", "")
+                if m_type in ("system", "system_message"):
+                    role = "system"
+                elif m_type in ("ai", "assistant"):
+                    role = "assistant"
+                messages.append({"role": role, "content": str(m.content)})
+            else:
+                messages.append({"role": "user", "content": str(m)})
+        return messages
+    return [{"role": "user", "content": str(input_val)}]
+
+
+class _ResponseObj:
+    def __init__(self, c: str):
+        self.content = c
+
+    def __str__(self) -> str:
+        return self.content
+
+
+def _make_completion_response(content: str):
+    class _Msg:
+        def __init__(self, c):
+            self.content = c
+
+    class _Choice:
+        def __init__(self, c):
+            self.message = _Msg(c)
+
+    class _Completion:
+        def __init__(self, c):
+            self.choices = [_Choice(c)]
+
+    return _Completion(content.strip())
+
+
+class OpenAILLMWrapper:
+    """Wrapper around OpenAI API using user's BYOK credential."""
+
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        self.api_key = api_key
+        self.model = model or "gpt-4o-mini"
+        self.chat = self
+
+    @property
+    def completions(self):
+        return self
+
+    def create(self, messages: List[Dict[str, str]], model: Optional[str] = None, temperature: float = 0.3, **kwargs):
+        import httpx
+        chosen_model = model or self.model
+        with httpx.Client(timeout=45.0) as client:
+            resp = client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": chosen_model,
+                    "messages": messages,
+                    "temperature": temperature,
+                },
+            )
+        if resp.status_code == 401:
+            raise RuntimeError("Invalid OpenAI API key.")
+        elif resp.status_code != 200:
+            raise RuntimeError(f"OpenAI API call failed with status {resp.status_code}: {resp.text}")
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"] or ""
+        return _make_completion_response(content)
+
+    def invoke(self, input_val):
+        messages = _normalize_input_to_messages(input_val)
+        res = self.create(messages=messages, model=self.model)
+        return _ResponseObj(res.choices[0].message.content)
+
+
+class AnthropicLLMWrapper:
+    """Wrapper around Anthropic / Claude API using user's BYOK credential."""
+
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        self.api_key = api_key
+        self.model = model or "claude-3-5-sonnet-20241022"
+        self.chat = self
+
+    @property
+    def completions(self):
+        return self
+
+    def create(self, messages: List[Dict[str, str]], model: Optional[str] = None, temperature: float = 0.3, **kwargs):
+        import httpx
+        chosen_model = model or self.model
+        system_content = None
+        user_msgs = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "system":
+                system_content = content
+            elif role in ("user", "assistant"):
+                user_msgs.append({"role": role, "content": content})
+            else:
+                user_msgs.append({"role": "user", "content": content})
+
+        if not user_msgs:
+            user_msgs = [{"role": "user", "content": "Hello"}]
+
+        payload = {
+            "model": chosen_model,
+            "messages": user_msgs,
+            "max_tokens": 2048,
+            "temperature": temperature,
+        }
+        if system_content:
+            payload["system"] = system_content
+
+        with httpx.Client(timeout=45.0) as client:
+            resp = client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+        if resp.status_code == 401:
+            raise RuntimeError("Invalid Anthropic API key.")
+        elif resp.status_code != 200:
+            raise RuntimeError(f"Anthropic API call failed with status {resp.status_code}: {resp.text}")
+        data = resp.json()
+        content = data.get("content", [{}])[0].get("text", "")
+        return _make_completion_response(content)
+
+    def invoke(self, input_val):
+        messages = _normalize_input_to_messages(input_val)
+        res = self.create(messages=messages, model=self.model)
+        return _ResponseObj(res.choices[0].message.content)
+
+
+class GeminiLLMWrapper:
+    """Wrapper around Google Gemini API using user's BYOK credential."""
+
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        self.api_key = api_key
+        self.model = model or "gemini-1.5-flash"
+        self.chat = self
+
+    @property
+    def completions(self):
+        return self
+
+    def create(self, messages: List[Dict[str, str]], model: Optional[str] = None, temperature: float = 0.3, **kwargs):
+        import httpx
+        chosen_model = model or self.model
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{chosen_model}:generateContent?key={self.api_key}"
+
+        system_content = None
+        contents = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if role == "system":
+                system_content = content
+            else:
+                gemini_role = "user" if role == "user" else "model"
+                contents.append({"role": gemini_role, "parts": [{"text": content}]})
+
+        if not contents:
+            contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
+
+        payload = {"contents": contents}
+        if system_content:
+            payload["systemInstruction"] = {"parts": [{"text": system_content}]}
+
+        with httpx.Client(timeout=45.0) as client:
+            resp = client.post(url, json=payload)
+        if resp.status_code in (400, 403):
+            raise RuntimeError("Invalid Google Gemini API key or request.")
+        elif resp.status_code != 200:
+            raise RuntimeError(f"Google Gemini API call failed with status {resp.status_code}: {resp.text}")
+        data = resp.json()
+        try:
+            content = data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError):
+            content = ""
+        return _make_completion_response(content)
+
+    def invoke(self, input_val):
+        messages = _normalize_input_to_messages(input_val)
+        res = self.create(messages=messages, model=self.model)
+        return _ResponseObj(res.choices[0].message.content)
+
+
+def get_llm_for_provider(provider: str, api_key: str, model: Optional[str] = None):
+    """Factory creating an LLM client wrapper configured with a user's BYOK credential."""
+    if not provider or not isinstance(provider, str):
+        raise ValueError("Provider must be specified.")
+    norm = provider.strip().lower()
+    if norm == "openai":
+        return OpenAILLMWrapper(api_key=api_key, model=model)
+    elif norm in ("anthropic", "claude"):
+        return AnthropicLLMWrapper(api_key=api_key, model=model)
+    elif norm in ("gemini", "google"):
+        return GeminiLLMWrapper(api_key=api_key, model=model)
+    elif norm == "groq":
+        from groq import Groq
+        raw_client = Groq(api_key=api_key)
+        return GroqLLMWrapper(raw_client, model or os.getenv("LLM_MODEL", "openai/gpt-oss-20b"))
+    else:
+        raise ValueError(f"Unsupported AI provider: {provider}")
+
+
 def get_llm():
     """Return the shared Groq / LLM client, initialized on first call."""
     global _llm_client
@@ -189,7 +413,7 @@ def generate_answer(
     if hasattr(llm_client, "chat") and hasattr(llm_client.chat, "completions"):
         completion = llm_client.chat.completions.create(
             messages=messages,
-            model=clean_model,
+            model=getattr(llm_client, "model", clean_model),
             temperature=0.3,
         )
         return completion.choices[0].message.content.strip()

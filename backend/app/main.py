@@ -21,6 +21,7 @@ from .routes.conversations import router as conversations_router
 from .routes.assistants import router as assistants_router
 from .routes.documents import router as documents_router
 from .routes.rag import router as rag_router
+from .routes.ai_providers import router as ai_providers_router
 
 app = FastAPI(
     title="PromptForge API",
@@ -55,6 +56,9 @@ app.include_router(documents_router)
 app.include_router(documents_router, prefix="/api")
 app.include_router(rag_router)
 app.include_router(rag_router, prefix="/api")
+app.include_router(ai_providers_router)
+app.include_router(ai_providers_router, prefix="/api")
+
 
 @app.get("/", tags=["General"])
 def read_root():
